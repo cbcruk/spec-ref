@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+
+# vite / vite-plus cache
+.vite/
+.vite-plus/
+
+# logs
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+.idea/
+*.swp

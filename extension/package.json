@@ -1,0 +1,41 @@
+{
+  "name": "spec-ref-lsp",
+  "displayName": "SPEC Reference",
+  "version": "0.1.0",
+  "description": "코드의 @spec 참조를 SPEC.md 노드에 결정적으로 대조 (자동완성·진단·정의)",
+  "categories": [
+    "Linters",
+    "Programming Languages"
+  ],
+  "main": "./out/client.js",
+  "scripts": {
+    "build": "tsc client.ts --outDir out && cp -R ../src out/src",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.4.0"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "SPEC Reference",
+      "properties": {
+        "specRef.specGlob": {
+          "type": "string",
+          "default": "**/*.md",
+          "description": "SPEC 문서로 인덱싱할 마크다운 glob"
+        }
+      }
+    }
+  },
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
+  "engines": {
+    "vscode": "^1.75.0"
+  }
+}
