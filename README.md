@@ -46,6 +46,7 @@ pnpm i                                       # mdast-util-from-markdown, tsx, ty
 pnpm check:gen <spec.md> <spec.gen.ts>       # 생성물이 SPEC 카피를 verbatim 담았는지
 pnpm check:gen:fixtures                       # fixtures/ 예시로 바로 확인
 pnpm check:gen --json <spec.md> <spec.gen.ts> # 기계 판독 (에이전트/CI)
+pnpm test                                     # node:test 유닛 (tsx --test)
 # 문제가 있으면 exit 1 → CI 게이트
 ```
 
@@ -82,10 +83,12 @@ md→ts **생성기 자체는 이 저장소에 없다** — LLM이 편집 시점
 src/
   core/
     spec-ref.ts          코어 — parseSpec (SPEC.md → 절·항목·카피)
+    spec-ref.test.ts     parseSpec 유닛 테스트
     spec-ref.types.ts    도메인 타입 (SpecSection · SpecItem · ItemKind)
     spec-ref.utils.ts    순수 헬퍼 (norm · mdast 순회)
   cli/
     gen-check.ts         생성물 충실성 검사 (md↔ts 카피 집합 diff, --json)
+    gen-check.test.ts    checkGenContent · extractStringValues 유닛 테스트
 fixtures/
   SPEC.md                예시 SPEC
   spec.gen.ts            SPEC.md 투영 예시 (check:gen 대상)

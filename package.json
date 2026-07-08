@@ -6,6 +6,7 @@
   "scripts": {
     "check:gen": "tsx src/cli/gen-check.ts",
     "check:gen:fixtures": "tsx src/cli/gen-check.ts fixtures/SPEC.md fixtures/spec.gen.ts",
+    "test": "tsx --test",
     "typecheck": "tsc --noEmit",
     "prepare": "vp config"
   },

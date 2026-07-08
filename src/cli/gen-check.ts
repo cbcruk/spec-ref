@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
+import { argv } from 'node:process'
+import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { parseSpec } from '../core/spec-ref.ts'
 
 // 생성된 .ts에서 '값 위치' 문자열 리터럴만 뽑는다.
 // 프로퍼티 키(`"타이틀":`)와 import/export 지정자(`from './x.ts'`)는 제외.
-function extractStringValues(src: string, fileName: string): Set<string> {
+export function extractStringValues(src: string, fileName: string): Set<string> {
   const sf = ts.createSourceFile(fileName, src, ts.ScriptTarget.Latest, true)
   const out = new Set<string>()
 
@@ -39,10 +41,14 @@ export interface GenReport {
   ok: boolean
 }
 
-// SPEC.md 의 명시 카피가 생성된 .ts 에 verbatim으로 실렸는지 대조한다.
+// 순수 로직: SPEC.md 텍스트와 생성물 .ts 텍스트를 받아 충실성을 대조한다.
 // 결정적 · 오프라인 · 컴파일러 지식 불필요(집합 diff). LLM 생성물을 감싸는 그물.
-export function checkGen(specPath: string, genPath: string): GenReport {
-  const secs = parseSpec(readFileSync(specPath, 'utf8'))
+export function checkGenContent(
+  specMd: string,
+  genTs: string,
+  meta: { spec: string; gen: string },
+): GenReport {
+  const secs = parseSpec(specMd)
   const copies = new Set<string>()
   const allowed = new Set<string>() // 카피 ∪ 서술(behavior) — 생성물에 있어도 되는 텍스트
   for (const s of secs) {
@@ -53,18 +59,26 @@ export function checkGen(specPath: string, genPath: string): GenReport {
     for (const it of s.items) if (it.kind === 'behavior') allowed.add(it.label)
   }
 
-  const tsValues = extractStringValues(readFileSync(genPath, 'utf8'), genPath)
+  const tsValues = extractStringValues(genTs, meta.gen)
 
   const missing = [...copies].filter((c) => !tsValues.has(c))
   const hallucinated = [...tsValues].filter((v) => !allowed.has(v))
   return {
-    spec: specPath,
-    gen: genPath,
+    spec: meta.spec,
+    gen: meta.gen,
     missing,
     hallucinated,
     copies: copies.size,
     ok: missing.length === 0 && hallucinated.length === 0,
   }
+}
+
+// 파일 경로 래퍼.
+export function checkGen(specPath: string, genPath: string): GenReport {
+  return checkGenContent(readFileSync(specPath, 'utf8'), readFileSync(genPath, 'utf8'), {
+    spec: specPath,
+    gen: genPath,
+  })
 }
 
 function renderText(r: GenReport): void {
@@ -77,7 +91,7 @@ function renderText(r: GenReport): void {
 }
 
 function main(): void {
-  const args = process.argv.slice(2)
+  const args = argv.slice(2)
   const json = args.includes('--json')
   const [specPath, genPath] = args.filter((a) => a !== '--json')
   if (!specPath || !genPath) {
@@ -92,4 +106,5 @@ function main(): void {
   process.exit(report.ok ? 0 : 1)
 }
 
-main()
+// 직접 실행될 때만 CLI 구동 (테스트에서 import 해도 main 이 돌지 않게).
+if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main()
