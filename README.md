@@ -87,8 +87,35 @@ pnpm i
 ```bash
 pnpm check <spec.md> <code.ts>          # = tsx src/cli/ref-check.ts …
 pnpm check:fixtures                     # fixtures/ 예시로 바로 확인
+pnpm check --json <spec.md> <code.ts>   # 기계 판독 verdict (JSON)
 # 문제가 있으면 exit 1 → CI에서 머지 차단 가능
 ```
+
+#### `--json` — 에이전트가 소비하는 계약
+
+사람용 출력은 아이콘·산문이라 파싱이 깨지기 쉽다. `--json`은 코어가 낸 구조화 verdict를 그대로 내보낸다:
+
+```jsonc
+{
+  "spec": "SPEC.md",
+  "files": [
+    {
+      "path": "messages.ts",
+      "rows": [
+        {
+          "ref": { "path": "LEAVE_CONFIRM.header", "value": "…", "line": 3, "spec": "…> 타이틀:" },
+          "verdict": { "kind": "value-mismatch", "section": "…", "label": "…", "expected": ["…"] },
+        },
+      ],
+    },
+  ],
+  "orphans": [{ "section": "…", "copy": "…" }],
+  "errors": 2,
+  "ok": false,
+}
+```
+
+`verdict.kind`(`value-mismatch`·`dead-item`·`no-ref`…)와 `expected`·`movedTo`·`foundIn` 필드로, 코딩 에이전트가 편집 루프에 그대로 물릴 수 있다: **카피 수정 → `pnpm check --json` → `value-mismatch` 감지 → "SPEC과 어긋냈다" 자각 → SPEC 확인**. exit code(0/1)는 두 모드 동일.
 
 ### LSP — 헤드리스 검증
 
