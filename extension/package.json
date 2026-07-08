@@ -1,49 +1,31 @@
 {
-  "name": "spec-ref-lsp",
-  "displayName": "SPEC Reference",
+  "name": "spec-ref-nav",
+  "displayName": "SPEC Reference — 헤딩 링크",
   "version": "0.1.0",
-  "description": "코드의 @spec 참조를 SPEC.md 노드에 결정적으로 대조 (자동완성·진단·정의)",
+  "description": "코드 주석의 SPEC.md#헤딩 링크를 해당 절로 점프 (표준 @see/@link 기반)",
   "categories": [
-    "Linters",
+    "Other",
     "Programming Languages"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/cbcruk/spec-ref.git"
   },
-  "main": "./out/client.js",
+  "main": "./out/extension.js",
   "scripts": {
-    "typecheck": "tsc -p .",
-    "bundle:client": "esbuild client.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/client.js --sourcemap",
-    "bundle:server": "esbuild ../src/lsp/server.ts --bundle --platform=node --format=cjs --target=node18 --outfile=out/server.js --sourcemap",
-    "build": "pnpm bundle:server && pnpm bundle:client",
+    "build": "tsc -p .",
+    "watch": "tsc -w -p .",
     "package": "pnpm build && npx --yes @vscode/vsce package --no-dependencies",
     "vscode:prepublish": "pnpm build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.75.0",
-    "esbuild": "^0.24.0",
-    "mdast-util-from-markdown": "^2.0.2",
-    "typescript": "^5.4.0",
-    "vscode-languageclient": "^9.0.1",
-    "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-uri": "^3.0.8"
-  },
-  "contributes": {
-    "configuration": {
-      "title": "SPEC Reference",
-      "properties": {
-        "specRef.specGlob": {
-          "type": "string",
-          "default": "**/*.md",
-          "description": "SPEC 문서로 인덱싱할 마크다운 glob"
-        }
-      }
-    }
+    "typescript": "^5.4.0"
   },
   "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
     "onLanguage:typescript",
     "onLanguage:typescriptreact"
   ],

@@ -4,11 +4,13 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "lib": ["ES2022"],
-    "noEmit": true,
+    "outDir": "out",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "sourceMap": true,
     "types": ["vscode", "node"]
   },
-  "include": ["client.ts"]
+  "include": ["extension.ts", "md-anchors.ts"]
 }

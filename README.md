@@ -127,77 +127,40 @@ pnpm lsp:probe     # fixtures/ 를 워크스페이스로 서버를 띄우고 JSO
 
 initialize → 진단 → 자동완성(절/항목) → 정의 점프 → SPEC.md 편집 후 크로스파일 재검증까지 출력한다.
 
-### LSP — VSCode 익스텐션
+### VSCode 익스텐션 — SPEC 헤딩 링크
 
-`extension/` 아래 `package.json`과 `client.ts`가 스캐폴드. `src/lsp/server.ts`를 stdio로 띄우고 `.ts`/`.tsx`에 붙인다. `**/*.md` watcher로 SPEC 변경을 감지한다.
+**에디터 표면은 커스텀 LSP에서 표준 태그 + 최소 링크 리졸버로 피봇했다.** 검증(drift)은 CLI(`pnpm check`)가, 네비게이션은 이 익스텐션이 담당한다.
 
-클라이언트(`client.ts`)와 서버(`src/lsp/server.ts`)를 각각 **esbuild로 단일 js 번들**한다. 런타임에 `tsx`나 별도 `node_modules`가 필요 없어, `.vsix` 하나로 자립 실행된다.
+배경: `@see`/`@link` 같은 표준 JSDoc 태그는 VSCode가 호버·렌더를 네이티브로 처리하지만, 링크가 `.md` **파일**은 열어도 `#헤딩` **앵커**로는 스크롤하지 못한다(VSCode는 `#L<줄번호>` fragment만 해석). 이 익스텐션은 딱 그 갭만 메운다 — 코드 주석의 `경로.md#헤딩` 링크를 잡아, 클릭 시점에 그 헤딩의 실제 줄을 찾아 `#L<line>`으로 번역해 점프시킨다.
 
-#### 사전 준비
+```ts
+/** @see {@link ./SPEC.md#저장--미저장-시-이탈} */ // ← Cmd/Ctrl+클릭 → 그 절로 점프
+export const LEAVE_CONFIRM = {
+  /* … */
+} as const
+```
 
-- **VSCode** `1.75.0` 이상 (`extension/package.json`의 `engines.vscode`)
-- **Node.js** `18` 이상 + **pnpm**
+`{@link ./x.md#앵커}`·`@see ./x.md#앵커`·`[텍스트](./x.md#앵커)` 형태를 모두 인식한다. 앵커는 GitHub 슬러그(`저장--미저장-시-이탈`)를 기본으로, 단·이중 하이픈이나 `/` 차이는 정규화로 흡수하고, 못 맞추면 헤딩 텍스트 prefix로 폴백한다. 한글·percent-encoding 모두 처리.
 
-익스텐션은 자체 `node_modules`로 자립하므로 루트 설치와 무관하다.
+> **왜 `#L<줄번호>`를 직접 안 쓰나** — 줄은 SPEC이 편집되면 밀린다. durable한 건 헤딩 슬러그뿐이라, 소스엔 슬러그를 두고 클릭 순간에만 줄로 번역한다.
 
-#### 빌드
+#### 빌드 · 설치
+
+npm 런타임 의존성이 없다(`vscode` API + `node:fs`/`node:path`뿐). 그래서 **번들링도 `tsx`도 language-server도 없이** `tsc` 한 번이면 끝. `.vsix`는 약 5KB.
 
 ```bash
 cd extension
-pnpm i --ignore-workspace   # 번들 의존성 (esbuild·vscode-languageclient·서버 deps)
-pnpm build                  # esbuild → out/server.js + out/client.js
-pnpm typecheck              # (선택) tsc -p . 로 client.ts 타입 검사
+pnpm i --ignore-workspace   # devDeps 3개: @types/node·@types/vscode·typescript
+pnpm build                  # tsc -p . → out/extension.js + out/md-anchors.js
+pnpm package                # = build && npx --yes @vscode/vsce package --no-dependencies
+code --install-extension spec-ref-nav-0.1.0.vsix
 ```
 
-> **`--ignore-workspace` 이유** — 상위에 `pnpm-workspace.yaml`(Vite+)이 있어, 그냥 `pnpm i`를 돌리면 pnpm이 익스텐션이 아니라 워크스페이스 루트를 설치한다. 그러면 익스텐션 의존성이 빠져 빌드가 깨진다. `--ignore-workspace`로 독립 패키지로 설치해야 한다.
->
-> **lockfile을 커밋하지 않는 이유** — `extension/pnpm-lock.yaml`은 gitignore 대상이다. `minimumReleaseAge`(배포된 지 오래된 패키지만 허용) 같은 공급망 정책은 그 컷오프가 시간에 따라 움직이므로, 특정 시점에 고정한 lockfile은 다른 환경/시점에서 최신 버전을 물어 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`으로 막힌다. lockfile 없이 매번 새로 해소하면 pnpm이 각 환경 정책에 맞는(컷오프보다 오래된) 버전을 고른다.
+개발 중엔 `extension/`을 VSCode로 열고 `F5`(**Run Extension**) → **Extension Development Host**에서 `.ts` 파일의 링크를 바로 확인. `pnpm watch`로 재빌드.
 
-`build`는 두 개의 CommonJS 번들을 만든다: `out/client.js`(진입점, `vscode`만 external) 와 `out/server.js`(코어·LSP + `mdast-util-from-markdown`·`typescript` 전부 인라인, 약 10MB). `client.ts`는 이 `out/server.js`를 stdio로 띄운다.
+> **`--ignore-workspace`** — 상위 `pnpm-workspace.yaml`(Vite+) 때문에 그냥 `pnpm i`를 돌리면 워크스페이스 루트가 설치돼 익스텐션 의존성이 빠진다. 독립 패키지로 설치하려면 이 플래그가 필요하다. · **`vsce`를 `npx`로** — 퍼블리시 CLI를 의존성으로 고정하면 `@azure/msal-*` 최신 트리가 lockfile에 박혀 `minimumReleaseAge` 정책에 걸린다. 패키징 때만 즉석 호출. · `extension/pnpm-lock.yaml`은 gitignore(정책 컷오프가 시간에 따라 움직이므로 매번 새로 해소).
 
-#### 설치 방법 1 — 개발 모드 (Extension Development Host)
-
-가장 빠른 확인 경로.
-
-1. `pnpm i --ignore-workspace && pnpm build`로 번들을 만든다(서버 진입점 `out/server.js`가 있어야 한다).
-2. VSCode로 `extension/` 폴더를 열고 `F5`(또는 **Run and Debug → Run Extension**)를 누른다 → **Extension Development Host** 창이 열린다.
-3. 새 창에서 `.ts`/`.tsx` 파일을 열면 익스텐션이 활성화된다(`activationEvents`). 같은 워크스페이스의 `**/*.md`가 SPEC으로 인덱싱된다. 소스를 고치면 `pnpm build` 후 창을 재시작(`Ctrl/Cmd+R`)한다.
-
-#### 설치 방법 2 — `.vsix` 패키징 후 설치
-
-팀에 배포하거나 상시 사용하려면 패키징한다.
-
-```bash
-cd extension
-pnpm package                    # = pnpm build && npx --yes @vscode/vsce package --no-dependencies
-code --install-extension spec-ref-lsp-0.1.0.vsix
-```
-
-또는 VSCode에서 **Extensions 패널 → `···` → Install from VSIX…** 로 `.vsix`를 선택한다.
-
-> **`vsce`를 `npx`로 부르는 이유** — `@vscode/vsce`는 퍼블리시 인증용으로 `@azure/msal-*` 트리를 끌어온다. 이를 익스텐션 의존성으로 고정하면 lockfile이 그 최신 패키지들을 물어, `minimumReleaseAge` 같은 공급망 정책이 걸린 환경에서 `pnpm i`가 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`으로 막힌다. 패키징 때만 `npx`로 즉석에서 받아 쓰면 익스텐션 의존성은 번들 도구(esbuild·language-server)만 남는다.
->
-> **`--no-dependencies` 이유** — 모든 런타임 코드가 번들에 들어가므로 `node_modules`를 vsix에 넣을 필요가 없다. 또 `vsce`는 기본적으로 `npm list`로 의존성 트리를 훑는데, pnpm으로 설치한 `node_modules`(심링크 스토어)는 이 검사를 통과하지 못해 `ELSPROBLEMS … missing: …` 에러가 난다. `--no-dependencies`가 이 트리 검사를 건너뛴다. `.vscodeignore`로 소스맵·`.ts`·lockfile을 빼면 vsix는 약 1.8MB.
-
-#### 설정
-
-익스텐션 매니페스트는 SPEC 인덱싱 범위를 조정할 설정 키를 선언해 둔다:
-
-```jsonc
-{
-  // SPEC 문서로 인덱싱할 마크다운 glob (기본 "**/*.md")
-  "specRef.specGlob": "docs/**/*.md",
-}
-```
-
-> 현재 스캐폴드 서버는 워크스페이스의 `**/*.md`를 전부 인덱싱하며 이 값을 아직 소비하지 않는다. `client.ts`에서 `initializationOptions`로 넘겨 서버가 읽도록 배선하는 것이 다음 단계다.
-
-에디터에서 얻는 것:
-
-- `@spec ` 뒤 → SPEC 절 자동완성, `>` 뒤 → 항목 라벨 자동완성(카피/서술 구분)
-- 깨진 참조·값 불일치 → 해당 줄 squiggle
-- `@spec` 줄에서 정의로 이동 → SPEC.md의 그 노드로 점프
-- SPEC.md가 바뀌면 참조하는 코드가 자동 재검증(dead-reference 표시). **고치지는 않는다.**
+순수 해소 로직(`md-anchors.ts`)은 `vscode` 비의존이라 헤드리스로 검증했다(슬러그 매칭·한글·percent-encoding). 다만 **클릭 시 실제 줄 점프**는 VSCode의 `#L` fragment 처리에 기대므로, 에디터에서 한 번 확인하는 게 좋다.
 
 ---
 
@@ -224,10 +187,11 @@ src/
   lsp/
     server.ts            LSP 서버 (진단 · 자동완성 · 정의 · hover)
     probe.ts             헤드리스 LSP 하네스 (VSCode 없이 검증)
-extension/
-  client.ts              VSCode 클라이언트 (번들되어 out/server.js 실행)
-  package.json           익스텐션 매니페스트 + esbuild 번들 스크립트
-  tsconfig.json          타입 검사 설정 (noEmit, Node16)
+extension/                 VSCode 익스텐션 — SPEC.md#헤딩 링크 네비게이션
+  extension.ts           DocumentLinkProvider (vscode 배선)
+  md-anchors.ts          헤딩 슬러그 → 줄 번호 해소 (순수, 헤드리스 테스트 가능)
+  package.json           매니페스트 (런타임 deps 없음, tsc 빌드)
+  tsconfig.json          빌드 설정 (Node16, out/ 출력)
   .vscodeignore          vsix 포함 파일 필터 (소스맵·.ts 제외)
 fixtures/
   SPEC.md · messages.ts  CLI·probe 가 쓰는 예시 워크스페이스
