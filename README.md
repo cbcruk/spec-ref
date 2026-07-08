@@ -117,6 +117,32 @@ pnpm check --json <spec.md> <code.ts>   # 기계 판독 verdict (JSON)
 
 `verdict.kind`(`value-mismatch`·`dead-item`·`no-ref`…)와 `expected`·`movedTo`·`foundIn` 필드로, 코딩 에이전트가 편집 루프에 그대로 물릴 수 있다: **카피 수정 → `pnpm check --json` → `value-mismatch` 감지 → "SPEC과 어긋냈다" 자각 → SPEC 확인**. exit code(0/1)는 두 모드 동일.
 
+### 생성물 검증 (`check:gen`) — md→ts 를 LLM에 맡기는 길
+
+또 다른 접근: SPEC 카피를 **참조 가능한 형태**로 만들려고 `@spec` 앵커를 검증하는 대신, SPEC.md를 **`.ts` 로 투영**한다. 그러면 코드가 문자열을 재복사하지 않고 SPEC 상수를 **소비**한다 — 값 drift가 구조적으로 불가능하고, 절/항목이 사라지면 `tsc`가 컴파일 에러(`dead-section`/`dead-item`)로 잡는다. 네비게이션(go-to-def·find-refs·rename)도 네이티브.
+
+```ts
+// spec.gen.ts (SPEC.md 에서 생성)
+export const SPEC = {
+  '저장 / 미저장 시 이탈': { 타이틀: '자동 접수 설정을 중단하시겠어요?' /* … */ },
+} as const
+
+// 소비 코드 — 값을 SPEC 에서 가져온다 (drift 불가). 잘못된 키는 tsc 에러.
+export const LEAVE_HEADER = SPEC['저장 / 미저장 시 이탈'].타이틀
+```
+
+md→ts **변환 자체는 LLM에 맡길 수 있다** — 단, LLM은 **빌드가 아니라 편집 시점**에 두고 출력을 커밋·리뷰한다. 비결정성은 커밋된 소스로 고정되고, 빌드는 `tsc` + 아래 결정적 그물만 돈다.
+
+```bash
+pnpm check:gen <spec.md> <spec.gen.ts>    # 생성물이 SPEC 카피를 verbatim으로 담았는지
+pnpm check:gen:fixtures                    # fixtures/ 예시
+pnpm check:gen --json …                    # 기계 판독
+```
+
+`check:gen`은 SPEC의 명시 카피 집합(코어 `parseSpec`)과 생성물의 문자열 값 집합(TS AST, 키·import 제외)을 **집합 diff** 한다. LLM이 카피를 **누락**하거나 **미묘하게 변형**(마침표 하나 뗀 것까지)하면 `missing`/`hallucinated`로 잡고 exit 1. 컴파일러 지식이 필요 없는 결정적 검사라, "md2ts는 LLM, 충실성은 이 그물"이라는 분업이 성립한다.
+
+> **그물이 못 잡는 것** — 카피의 **존재·verbatim**은 잡지만, 그 카피가 **올바른 헤딩 키 아래** 있는지(배치)는 매핑을 재유도해야 해서 결정적으로는 못 본다. 매핑을 단순하게(헤딩=키) 유지하거나 배치는 사람 리뷰(diff가 작다)에 맡긴다.
+
 ### LSP — 헤드리스 검증
 
 VSCode 없이 서버 동작을 확인:
@@ -183,7 +209,8 @@ src/
     spec-ref.types.ts    도메인 타입 (SpecSection · CodeRef · Verdict …)
     spec-ref.utils.ts    순수 헬퍼 (norm · mdast 순회)
   cli/
-    ref-check.ts         CLI (CI 게이트, exit 1 on 문제)
+    ref-check.ts         CLI — @spec 참조 검증 (verdict, exit 1 on 문제)
+    gen-check.ts         CLI — 생성물(spec.gen.ts) 충실성 검사 (md↔ts 카피 diff)
   lsp/
     server.ts            LSP 서버 (진단 · 자동완성 · 정의 · hover)
     probe.ts             헤드리스 LSP 하네스 (VSCode 없이 검증)
@@ -195,4 +222,5 @@ extension/                 VSCode 익스텐션 — SPEC.md#헤딩 링크 네비�
   .vscodeignore          vsix 포함 파일 필터 (소스맵·.ts 제외)
 fixtures/
   SPEC.md · messages.ts  CLI·probe 가 쓰는 예시 워크스페이스
+  spec.gen.ts            check:gen 예시 생성물 (SPEC.md 투영)
 ```

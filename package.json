@@ -6,6 +6,8 @@
   "scripts": {
     "check": "tsx src/cli/ref-check.ts",
     "check:fixtures": "tsx src/cli/ref-check.ts fixtures/SPEC.md fixtures/messages.ts",
+    "check:gen": "tsx src/cli/gen-check.ts",
+    "check:gen:fixtures": "tsx src/cli/gen-check.ts fixtures/SPEC.md fixtures/spec.gen.ts",
     "lsp": "tsx src/lsp/server.ts",
     "lsp:probe": "tsx src/lsp/probe.ts",
     "typecheck": "tsc --noEmit",
