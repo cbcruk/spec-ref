@@ -102,7 +102,58 @@ initialize → 진단 → 자동완성(절/항목) → 정의 점프 → SPEC.md
 
 ### LSP — VSCode 익스텐션
 
-`extension/` 아래 `package.json`과 `client.ts`가 스캐폴드. `src/lsp/server.ts`를 stdio로 띄우고 `.ts`/`.tsx`에 붙인다. `**/*.md` watcher로 SPEC 변경을 감지한다. 배포 시 `tsx` 런타임 대신 단일 js 번들 권장.
+`extension/` 아래 `package.json`과 `client.ts`가 스캐폴드. `src/lsp/server.ts`를 stdio로 띄우고 `.ts`/`.tsx`에 붙인다. `**/*.md` watcher로 SPEC 변경을 감지한다.
+
+#### 사전 준비
+
+- **VSCode** `1.75.0` 이상 (`extension/package.json`의 `engines.vscode`)
+- **Node.js** `18` 이상 + **pnpm**
+- 루트에서 `pnpm i` 완료 — 익스텐션은 서버를 `tsx` 런타임으로 띄우므로 루트의 `tsx`와 `mdast-util-from-markdown`·`vscode-languageserver*` 의존성이 설치돼 있어야 한다.
+
+#### 빌드
+
+```bash
+cd extension
+pnpm i                 # vscode-languageclient 등 클라이언트 의존성
+pnpm build             # tsc client.ts --outDir out && cp -R ../src out/src
+```
+
+`out/client.js`(익스텐션 진입점)와 함께 코어·LSP 소스(`out/src/**`)가 복사된다. 서버는 이 `src/lsp/server.ts`를 `tsx`로 실행한다.
+
+#### 설치 방법 1 — 개발 모드 (Extension Development Host)
+
+가장 빠른 확인 경로. 별도 패키징 없이 바로 띄운다.
+
+1. VSCode로 `extension/` 폴더를 연다.
+2. `F5`(또는 **Run and Debug → Run Extension**)를 눌러 **Extension Development Host** 창을 연다.
+3. 새 창에서 `.ts`/`.tsx` 파일을 열면 익스텐션이 활성화된다(`activationEvents`). 같은 워크스페이스의 `**/*.md`가 SPEC으로 인덱싱된다.
+
+#### 설치 방법 2 — `.vsix` 패키징 후 설치
+
+팀에 배포하거나 상시 사용하려면 패키징한다.
+
+```bash
+cd extension
+npx @vscode/vsce package        # spec-ref-lsp-0.1.0.vsix 생성
+code --install-extension spec-ref-lsp-0.1.0.vsix
+```
+
+또는 VSCode에서 **Extensions 패널 → `···` → Install from VSIX…** 로 `.vsix`를 선택한다.
+
+> **배포 주의** — 현재 스캐폴드는 서버를 `tsx` 런타임으로 실행하므로, `.vsix`를 쓰는 환경에도 `tsx`와 서버 의존성이 필요하다. 독립 배포 시에는 `tsx` 런타임 대신 서버를 **단일 js로 번들**(예: `esbuild`)해 `runtime` 의존을 없애는 것을 권장한다.
+
+#### 설정
+
+익스텐션 매니페스트는 SPEC 인덱싱 범위를 조정할 설정 키를 선언해 둔다:
+
+```jsonc
+{
+  // SPEC 문서로 인덱싱할 마크다운 glob (기본 "**/*.md")
+  "specRef.specGlob": "docs/**/*.md"
+}
+```
+
+> 현재 스캐폴드 서버는 워크스페이스의 `**/*.md`를 전부 인덱싱하며 이 값을 아직 소비하지 않는다. `client.ts`에서 `initializationOptions`로 넘겨 서버가 읽도록 배선하는 것이 다음 단계다.
 
 에디터에서 얻는 것:
 
