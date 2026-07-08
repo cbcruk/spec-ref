@@ -123,6 +123,8 @@ pnpm typecheck              # (선택) tsc -p . 로 client.ts 타입 검사
 ```
 
 > **`--ignore-workspace` 이유** — 상위에 `pnpm-workspace.yaml`(Vite+)이 있어, 그냥 `pnpm i`를 돌리면 pnpm이 익스텐션이 아니라 워크스페이스 루트를 설치한다. 그러면 익스텐션 의존성이 빠져 빌드가 깨진다. `--ignore-workspace`로 독립 패키지로 설치해야 한다.
+>
+> **lockfile을 커밋하지 않는 이유** — `extension/pnpm-lock.yaml`은 gitignore 대상이다. `minimumReleaseAge`(배포된 지 오래된 패키지만 허용) 같은 공급망 정책은 그 컷오프가 시간에 따라 움직이므로, 특정 시점에 고정한 lockfile은 다른 환경/시점에서 최신 버전을 물어 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`으로 막힌다. lockfile 없이 매번 새로 해소하면 pnpm이 각 환경 정책에 맞는(컷오프보다 오래된) 버전을 고른다.
 
 `build`는 두 개의 CommonJS 번들을 만든다: `out/client.js`(진입점, `vscode`만 external) 와 `out/server.js`(코어·LSP + `mdast-util-from-markdown`·`typescript` 전부 인라인, 약 10MB). `client.ts`는 이 `out/server.js`를 stdio로 띄운다.
 
