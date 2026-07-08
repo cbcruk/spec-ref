@@ -7,18 +7,30 @@
     "Linters",
     "Programming Languages"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cbcruk/spec-ref.git"
+  },
   "main": "./out/client.js",
   "scripts": {
-    "build": "tsc -p . && cp -R ../src out/src",
-    "vscode:prepublish": "npm run build"
-  },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "typecheck": "tsc -p .",
+    "bundle:client": "esbuild client.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/client.js --sourcemap",
+    "bundle:server": "esbuild ../src/lsp/server.ts --bundle --platform=node --format=cjs --target=node18 --outfile=out/server.js --sourcemap",
+    "build": "pnpm bundle:server && pnpm bundle:client",
+    "package": "pnpm build && vsce package --no-dependencies",
+    "vscode:prepublish": "pnpm build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.75.0",
-    "typescript": "^5.4.0"
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "typescript": "^5.4.0",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.0.8"
   },
   "contributes": {
     "configuration": {

@@ -10,10 +10,10 @@ import {
 let client: LanguageClient
 
 export function activate(context: ExtensionContext) {
-  const serverModule = context.asAbsolutePath(path.join('src', 'lsp', 'server.ts'))
+  const serverModule = context.asAbsolutePath(path.join('out', 'server.js'))
   const serverOptions: ServerOptions = {
-    run: { module: serverModule, transport: TransportKind.stdio, runtime: 'tsx' },
-    debug: { module: serverModule, transport: TransportKind.stdio, runtime: 'tsx' },
+    run: { module: serverModule, transport: TransportKind.stdio },
+    debug: { module: serverModule, transport: TransportKind.stdio },
   }
 
   const clientOptions: LanguageClientOptions = {
