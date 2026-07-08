@@ -114,11 +114,13 @@ initialize → 진단 → 자동완성(절/항목) → 정의 점프 → SPEC.md
 
 ```bash
 cd extension
-pnpm i                 # vscode-languageclient 등 클라이언트 의존성
-pnpm build             # tsc client.ts --outDir out && cp -R ../src out/src
+pnpm i --ignore-workspace   # vscode-languageclient·@types/vscode 등 클라이언트 의존성
+pnpm build                  # tsc -p . && cp -R ../src out/src
 ```
 
-`out/client.js`(익스텐션 진입점)와 함께 코어·LSP 소스(`out/src/**`)가 복사된다. 서버는 이 `src/lsp/server.ts`를 `tsx`로 실행한다.
+> **`--ignore-workspace` 이유** — 상위에 `pnpm-workspace.yaml`(Vite+)이 있어, 그냥 `pnpm i`를 돌리면 pnpm이 익스텐션이 아니라 워크스페이스 루트를 설치한다. 그러면 `@types/vscode`·`vscode-languageclient`가 빠져 `Cannot find module 'vscode'` 류의 `tsc` 에러가 난다. `--ignore-workspace`로 익스텐션을 독립 패키지로 설치해야 한다.
+
+빌드는 `extension/tsconfig.json`(module/moduleResolution `Node16`)을 쓴다. `out/client.js`(익스텐션 진입점, CommonJS)와 함께 코어·LSP 소스(`out/src/**`)가 복사되고, 서버는 이 `src/lsp/server.ts`를 `tsx`로 실행한다.
 
 #### 설치 방법 1 — 개발 모드 (Extension Development Host)
 
@@ -149,7 +151,7 @@ code --install-extension spec-ref-lsp-0.1.0.vsix
 ```jsonc
 {
   // SPEC 문서로 인덱싱할 마크다운 glob (기본 "**/*.md")
-  "specRef.specGlob": "docs/**/*.md"
+  "specRef.specGlob": "docs/**/*.md",
 }
 ```
 
@@ -190,6 +192,7 @@ src/
 extension/
   client.ts              VSCode 클라이언트 스캐폴드
   package.json           익스텐션 매니페스트 스캐폴드
+  tsconfig.json          익스텐션 빌드 설정 (Node16, out/ 출력)
 fixtures/
   SPEC.md · messages.ts  CLI·probe 가 쓰는 예시 워크스페이스
 ```

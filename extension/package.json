@@ -9,13 +9,14 @@
   ],
   "main": "./out/client.js",
   "scripts": {
-    "build": "tsc client.ts --outDir out && cp -R ../src out/src",
+    "build": "tsc -p . && cp -R ../src out/src",
     "vscode:prepublish": "npm run build"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "@types/vscode": "^1.75.0",
     "typescript": "^5.4.0"
   },
