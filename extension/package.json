@@ -17,13 +17,12 @@
     "bundle:client": "esbuild client.ts --bundle --platform=node --format=cjs --target=node18 --external:vscode --outfile=out/client.js --sourcemap",
     "bundle:server": "esbuild ../src/lsp/server.ts --bundle --platform=node --format=cjs --target=node18 --outfile=out/server.js --sourcemap",
     "build": "pnpm bundle:server && pnpm bundle:client",
-    "package": "pnpm build && vsce package --no-dependencies",
+    "package": "pnpm build && npx --yes @vscode/vsce package --no-dependencies",
     "vscode:prepublish": "pnpm build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/vscode": "^1.75.0",
-    "@vscode/vsce": "^3.2.0",
     "esbuild": "^0.24.0",
     "mdast-util-from-markdown": "^2.0.2",
     "typescript": "^5.4.0",

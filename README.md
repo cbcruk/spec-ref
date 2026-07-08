@@ -140,12 +140,14 @@ pnpm typecheck              # (선택) tsc -p . 로 client.ts 타입 검사
 
 ```bash
 cd extension
-pnpm package                    # = pnpm build && vsce package --no-dependencies
+pnpm package                    # = pnpm build && npx --yes @vscode/vsce package --no-dependencies
 code --install-extension spec-ref-lsp-0.1.0.vsix
 ```
 
 또는 VSCode에서 **Extensions 패널 → `···` → Install from VSIX…** 로 `.vsix`를 선택한다.
 
+> **`vsce`를 `npx`로 부르는 이유** — `@vscode/vsce`는 퍼블리시 인증용으로 `@azure/msal-*` 트리를 끌어온다. 이를 익스텐션 의존성으로 고정하면 lockfile이 그 최신 패키지들을 물어, `minimumReleaseAge` 같은 공급망 정책이 걸린 환경에서 `pnpm i`가 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`으로 막힌다. 패키징 때만 `npx`로 즉석에서 받아 쓰면 익스텐션 의존성은 번들 도구(esbuild·language-server)만 남는다.
+>
 > **`--no-dependencies` 이유** — 모든 런타임 코드가 번들에 들어가므로 `node_modules`를 vsix에 넣을 필요가 없다. 또 `vsce`는 기본적으로 `npm list`로 의존성 트리를 훑는데, pnpm으로 설치한 `node_modules`(심링크 스토어)는 이 검사를 통과하지 못해 `ELSPROBLEMS … missing: …` 에러가 난다. `--no-dependencies`가 이 트리 검사를 건너뛴다. `.vscodeignore`로 소스맵·`.ts`·lockfile을 빼면 vsix는 약 1.8MB.
 
 #### 설정
