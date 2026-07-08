@@ -1,14 +1,9 @@
 # dependencies
 node_modules/
 
-# 익스텐션 lockfile은 커밋하지 않는다 — 환경별 minimumReleaseAge 정책에 맞춰
-# 매 설치 시 새로 해소되게 둔다 (커밋된 lockfile은 최신 버전을 고정해 정책 위반)
-extension/pnpm-lock.yaml
-
 # build output
 out/
 dist/
-*.vsix
 
 # vite / vite-plus cache
 .vite/

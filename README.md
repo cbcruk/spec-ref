@@ -79,7 +79,6 @@ CLI와 LSP는 **같은 `resolveRefs`** 를 공유한다. 판정 로직은 코어
 pnpm i
 # 코어/실행: typescript, tsx, mdast-util-from-markdown
 # LSP:      vscode-languageserver, vscode-languageserver-textdocument, vscode-uri
-# 클라이언트: vscode-languageclient
 ```
 
 ### CLI (CI 게이트)
@@ -153,40 +152,7 @@ pnpm lsp:probe     # fixtures/ 를 워크스페이스로 서버를 띄우고 JSO
 
 initialize → 진단 → 자동완성(절/항목) → 정의 점프 → SPEC.md 편집 후 크로스파일 재검증까지 출력한다.
 
-### VSCode 익스텐션 — SPEC 헤딩 링크
-
-**에디터 표면은 커스텀 LSP에서 표준 태그 + 최소 링크 리졸버로 피봇했다.** 검증(drift)은 CLI(`pnpm check`)가, 네비게이션은 이 익스텐션이 담당한다.
-
-배경: `@see`/`@link` 같은 표준 JSDoc 태그는 VSCode가 호버·렌더를 네이티브로 처리하지만, 링크가 `.md` **파일**은 열어도 `#헤딩` **앵커**로는 스크롤하지 못한다(VSCode는 `#L<줄번호>` fragment만 해석). 이 익스텐션은 딱 그 갭만 메운다 — 코드 주석의 `경로.md#헤딩` 링크를 잡아, 클릭 시점에 그 헤딩의 실제 줄을 찾아 `#L<line>`으로 번역해 점프시킨다.
-
-```ts
-/** @see {@link ./SPEC.md#저장--미저장-시-이탈} */ // ← Cmd/Ctrl+클릭 → 그 절로 점프
-export const LEAVE_CONFIRM = {
-  /* … */
-} as const
-```
-
-`{@link ./x.md#앵커}`·`@see ./x.md#앵커`·`[텍스트](./x.md#앵커)` 형태를 모두 인식한다. 앵커는 GitHub 슬러그(`저장--미저장-시-이탈`)를 기본으로, 단·이중 하이픈이나 `/` 차이는 정규화로 흡수하고, 못 맞추면 헤딩 텍스트 prefix로 폴백한다. 한글·percent-encoding 모두 처리.
-
-> **왜 `#L<줄번호>`를 직접 안 쓰나** — 줄은 SPEC이 편집되면 밀린다. durable한 건 헤딩 슬러그뿐이라, 소스엔 슬러그를 두고 클릭 순간에만 줄로 번역한다.
-
-#### 빌드 · 설치
-
-npm 런타임 의존성이 없다(`vscode` API + `node:fs`/`node:path`뿐). 그래서 **번들링도 `tsx`도 language-server도 없이** `tsc` 한 번이면 끝. `.vsix`는 약 5KB.
-
-```bash
-cd extension
-pnpm i --ignore-workspace   # devDeps 3개: @types/node·@types/vscode·typescript
-pnpm build                  # tsc -p . → out/extension.js + out/md-anchors.js
-pnpm package                # = build && npx --yes @vscode/vsce package --no-dependencies
-code --install-extension spec-ref-nav-0.1.0.vsix
-```
-
-개발 중엔 `extension/`을 VSCode로 열고 `F5`(**Run Extension**) → **Extension Development Host**에서 `.ts` 파일의 링크를 바로 확인. `pnpm watch`로 재빌드.
-
-> **`--ignore-workspace`** — 상위 `pnpm-workspace.yaml`(Vite+) 때문에 그냥 `pnpm i`를 돌리면 워크스페이스 루트가 설치돼 익스텐션 의존성이 빠진다. 독립 패키지로 설치하려면 이 플래그가 필요하다. · **`vsce`를 `npx`로** — 퍼블리시 CLI를 의존성으로 고정하면 `@azure/msal-*` 최신 트리가 lockfile에 박혀 `minimumReleaseAge` 정책에 걸린다. 패키징 때만 즉석 호출. · `extension/pnpm-lock.yaml`은 gitignore(정책 컷오프가 시간에 따라 움직이므로 매번 새로 해소).
-
-순수 해소 로직(`md-anchors.ts`)은 `vscode` 비의존이라 헤드리스로 검증했다(슬러그 매칭·한글·percent-encoding). 다만 **클릭 시 실제 줄 점프**는 VSCode의 `#L` fragment 처리에 기대므로, 에디터에서 한 번 확인하는 게 좋다.
+> **VSCode 헤딩 링크 익스텐션은 은퇴했다.** md→ts 투영 방향에선 코드가 `SPEC` 상수를 소비하므로 go-to-def·find-refs·rename이 **네이티브**다 — `.md#헤딩`을 클릭 가능하게 만들 이유가 사라졌다. (이력은 git 참고.)
 
 ---
 
@@ -214,12 +180,6 @@ src/
   lsp/
     server.ts            LSP 서버 (진단 · 자동완성 · 정의 · hover)
     probe.ts             헤드리스 LSP 하네스 (VSCode 없이 검증)
-extension/                 VSCode 익스텐션 — SPEC.md#헤딩 링크 네비게이션
-  extension.ts           DocumentLinkProvider (vscode 배선)
-  md-anchors.ts          헤딩 슬러그 → 줄 번호 해소 (순수, 헤드리스 테스트 가능)
-  package.json           매니페스트 (런타임 deps 없음, tsc 빌드)
-  tsconfig.json          빌드 설정 (Node16, out/ 출력)
-  .vscodeignore          vsix 포함 파일 필터 (소스맵·.ts 제외)
 fixtures/
   SPEC.md · messages.ts  CLI·probe 가 쓰는 예시 워크스페이스
   spec.gen.ts            check:gen 예시 생성물 (SPEC.md 투영)
