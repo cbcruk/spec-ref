@@ -1,21 +1,20 @@
 {
   "name": "spec-ref",
   "version": "0.1.0",
-  "description": "코드 → SPEC 참조를 결정적으로 검증하는 CLI/LSP 도구",
+  "description": "SPEC.md를 참조 가능한 .ts로 투영하고, 생성물이 SPEC 카피를 verbatim 담았는지 결정적으로 검증하는 도구",
   "type": "module",
   "scripts": {
-    "check": "tsx src/cli/ref-check.ts",
-    "check:fixtures": "tsx src/cli/ref-check.ts fixtures/SPEC.md fixtures/messages.ts",
-    "lsp": "tsx src/lsp/server.ts",
-    "lsp:probe": "tsx src/lsp/probe.ts",
+    "gen": "tsx src/cli/gen.ts",
+    "gen:fixtures": "tsx src/cli/gen.ts fixtures/SPEC.md --out fixtures/spec.gen.ts",
+    "gen:check:fixtures": "tsx src/cli/gen.ts fixtures/SPEC.md --check fixtures/spec.gen.ts",
+    "check:gen": "tsx src/cli/gen-check.ts",
+    "check:gen:fixtures": "tsx src/cli/gen-check.ts fixtures/SPEC.md fixtures/spec.gen.ts",
+    "test": "tsx --test",
     "typecheck": "tsc --noEmit",
     "prepare": "vp config"
   },
   "dependencies": {
-    "mdast-util-from-markdown": "^2.0.2",
-    "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-uri": "^3.0.8"
+    "mdast-util-from-markdown": "^2.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
