@@ -50,19 +50,13 @@ export function checkGenContent(
 ): GenReport {
   const secs = parseSpec(specMd)
   const copies = new Set<string>()
-  const allowed = new Set<string>() // 카피 ∪ 서술(behavior) — 생성물에 있어도 되는 텍스트
-  for (const s of secs) {
-    for (const c of s.copies) {
-      copies.add(c)
-      allowed.add(c)
-    }
-    for (const it of s.items) if (it.kind === 'behavior') allowed.add(it.label)
-  }
+  for (const s of secs) for (const c of s.copies) copies.add(c)
 
   const tsValues = extractStringValues(genTs, meta.gen)
 
+  // 생성물 값은 전부 SPEC 카피여야 하고(환각 없음), SPEC 카피는 전부 실려야 한다(누락 없음).
   const missing = [...copies].filter((c) => !tsValues.has(c))
-  const hallucinated = [...tsValues].filter((v) => !allowed.has(v))
+  const hallucinated = [...tsValues].filter((v) => !copies.has(v))
   return {
     spec: meta.spec,
     gen: meta.gen,

@@ -10,13 +10,15 @@ SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능�
 
 SPEC 카피를 "참조 가능"하게 만들려고 마크다운을 앵커로 검증하는 대신, **이미 참조 가능한 것(TS 모듈)** 으로 바꾼다.
 
+투영은 **flat 참조 모델**이다 — `절 > 이름 > 값`. 계층·서술·구조를 충실히 옮기는 게 아니라, 코드가 가리킬 **이름 붙은 leaf 값**만 담는다.
+
 ```ts
 // spec.gen.ts — SPEC.md 에서 생성 (직접 수정 금지)
 export const SPEC = {
   '저장 / 미저장 시 이탈': {
+    저장완료: '진료실별 자동 접수 설정을 저장했어요.',
     타이틀: '자동 접수 설정을 중단하시겠어요?',
     내용: '중단하면 지금까지 변경한 정보가 저장되지 않아요.',
-    copies: ['진료실별 자동 접수 설정을 저장했어요.'],
   },
 } as const
 
@@ -27,10 +29,10 @@ export const LEAVE_HEADER = SPEC['저장 / 미저장 시 이탈'].타이틀
 여기서 공짜로 얻는 것 — **전부 `tsc`와 언어서비스가 준다, 별도 도구 없이:**
 
 - **값 drift 불가능** — 코드가 SPEC 상수를 소비하니 문구가 한 곳에만 산다. SPEC이 바뀌면 소비처가 자동으로 새 값을 받는다.
-- **dead 참조 = 컴파일 에러** — 절/항목이 사라지거나 리네임되면 옛 키 접근이 `tsc` 에러(`Property … does not exist`)로 뜬다.
+- **dead 참조 = 컴파일 에러** — 절/키가 사라지거나 리네임되면 옛 접근이 `tsc` 에러(`Property … does not exist`)로 뜬다.
 - **네이티브 네비게이션** — go-to-def·find-references·rename이 그냥 된다.
 
-헤딩은 식별자로 억지 변환하지 않고 **따옴표 키 + bracket 접근**(`SPEC['저장 / 미저장 시 이탈']`)을 쓴다. 원문 그대로 두면서 TS가 존재를 검사하므로 슬러그 변환 문제가 없다.
+헤딩·이름은 식별자로 억지 변환하지 않고 **따옴표 키 + bracket 접근**(`SPEC['저장 / 미저장 시 이탈'].타이틀`)을 쓴다. 원문 그대로 두면서 TS가 존재를 검사하므로 슬러그 변환 문제가 없다. **키(이름)는 작성자/LLM의 네이밍 자유고, 아래 `check:gen`은 값만 SPEC 카피와 대조한다.**
 
 ---
 
@@ -50,24 +52,24 @@ pnpm test                                     # node:test 유닛 (tsx --test)
 # 문제가 있으면 exit 1 → CI 게이트
 ```
 
-`check:gen`은 SPEC의 명시 카피 집합(코어 `parseSpec`)과 생성물의 문자열 값 집합(TS AST — 프로퍼티 키·import 지정자 제외)을 **집합 diff** 한다:
+`check:gen`은 SPEC의 카피 집합(코어 `parseSpec` — **리스트 항목의 백틱 인라인 코드 값**)과 생성물의 문자열 값 집합(TS AST — 프로퍼티 키·import 지정자 제외)을 **집합 diff** 한다:
 
 - `missing` — SPEC엔 있는데 생성물에 없음 → LLM 누락
 - `hallucinated` — 생성물에만 있음(SPEC 어디에도 없음) → LLM 환각·오타 (마침표 하나 뗀 변형까지 잡힌다)
 
 `--json`은 `{ missing, hallucinated, copies, ok }` 를 그대로 내보내, 코딩 에이전트가 편집 루프에 물릴 수 있다: **md 편집 → 재생성 → `check:gen --json` → `missing`/`hallucinated` 감지 → 수정.** 컴파일러 지식이 필요 없는 결정적 검사라 "md2ts는 LLM, 충실성은 이 그물"이라는 분업이 성립한다.
 
-> **그물이 못 잡는 것** — 카피의 **존재·verbatim**은 잡지만, 그 카피가 **올바른 헤딩 키 아래** 있는지(배치)는 매핑을 재유도해야 해서 결정적으로는 못 본다. 매핑을 단순하게(헤딩=키) 유지하거나 배치는 사람 리뷰(diff가 작다)에 맡긴다.
+> **카피 규약** — 참조 대상 문구는 SPEC.md에서 **백틱으로 감싼다**(`` - 타이틀: `자동 접수 설정을 중단하시겠어요?` ``). 백틱만이 "이건 verbatim 카피" 신호다. 백틱 없는 산문 항목(예: "…이탈 전 확인 모달을 띄운다")은 카피가 아니라 그냥 검증 대상이 아니다 — 별도 서술(behavior) 분류 없이, 안 실리면 그만이다.
 >
-> **behavior(서술) 노드** — `타이틀:`/`내용:` 라벨이나 백틱이 아닌 산문 항목(예: "…이탈 전 확인 모달을 띄운다")은 값이 아니라 서술이다. 생성물에 마커로 실려도 그물이 오탐하지 않도록 허용셋에 포함하지만, 카피처럼 verbatim 강제 대상은 아니다.
+> **그물이 못 잡는 것** — 카피의 **존재·verbatim**은 잡지만, 그 카피가 **올바른 이름/절 아래** 있는지(배치)는 검사하지 않는다. 값이 SPEC 어딘가에 있기만 하면 통과하므로, 키 네이밍·배치는 사람 리뷰(diff가 작다)에 맡긴다.
 
 ---
 
 ## 아키텍처
 
 ```
-src/core/spec-ref.ts        코어 (순수) — parseSpec(md): SPEC → 절·항목·카피
-  · spec-ref.types.ts       도메인 타입 (SpecSection · SpecItem · ItemKind)
+src/core/spec-ref.ts        코어 (순수) — parseSpec(md): SPEC → 절·카피(백틱 값)
+  · spec-ref.types.ts       도메인 타입 (SpecSection)
   · spec-ref.utils.ts       순수 헬퍼 (norm · mdast 순회)
       │
       └── src/cli/gen-check.ts   생성물 충실성 검사 (md 카피 ↔ ts 문자열, exit 1)
@@ -82,9 +84,9 @@ md→ts **생성기 자체는 이 저장소에 없다** — LLM이 편집 시점
 ```
 src/
   core/
-    spec-ref.ts          코어 — parseSpec (SPEC.md → 절·항목·카피)
+    spec-ref.ts          코어 — parseSpec (SPEC.md → 절·카피)
     spec-ref.test.ts     parseSpec 유닛 테스트
-    spec-ref.types.ts    도메인 타입 (SpecSection · SpecItem · ItemKind)
+    spec-ref.types.ts    도메인 타입 (SpecSection)
     spec-ref.utils.ts    순수 헬퍼 (norm · mdast 순회)
   cli/
     gen-check.ts         생성물 충실성 검사 (md↔ts 카피 집합 diff, --json)
