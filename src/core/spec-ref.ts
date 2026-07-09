@@ -1,31 +1,50 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
-import type { SpecSection } from './spec-ref.types.ts'
+import type { SpecEntry, SpecSection } from './spec-ref.types.ts'
 import { norm, nodeText } from './spec-ref.utils.ts'
 
-export type { SpecSection } from './spec-ref.types.ts'
+export type { SpecEntry, SpecSection } from './spec-ref.types.ts'
 
 const LEGACY_LABEL = /^(타이틀|내용)\s*:/
 
-// 한 번의 순회로 절의 카피(리스트 항목 안 백틱 값)를 수집한다. 각 노드를 정확히
-// 한 번씩 방문하므로 중첩 리스트의 백틱도 한 번만 수집된다.
-// 옛 카피 규약(`- 타이틀: 값` — 백틱 없음)으로 남은 항목은 보호가 사라진 채
-// 조용히 통과하지 않도록 legacyLabels 로 보고한다.
-function collect(n: any, inListItem: boolean, sec: SpecSection): void {
-  if (n.type === 'inlineCode') {
-    if (inListItem) sec.copies.push(n.value)
-    return
-  }
-  if (n.type === 'listItem') {
-    const para = (n.children ?? []).find((c: any) => c.type === 'paragraph')
-    if (para) {
-      const hasCode = (para.children ?? []).some((c: any) => c.type === 'inlineCode')
-      const text = norm(nodeText(para))
-      if (!hasCode && LEGACY_LABEL.test(text)) sec.legacyLabels.push(text)
+// 리스트 항목 하나에서 라벨과 카피 값을 뽑는다. 중첩 리스트는 별도 항목이므로
+// 건너뛰고, 라벨은 첫 백틱 이전 텍스트의 첫 콜론 앞부분이다.
+//   `- 이름: \`값\``        → { label: '이름', values: ['값'] }
+//   `- \`값\``              → { label: null,  values: ['값'] }
+//   `- 산문 (백틱 없음)`     → { label: …,     values: [] }
+function itemEntry(li: any): SpecEntry & { text: string } {
+  const values: string[] = []
+  let before = ''
+  let sawCode = false
+  const walk = (n: any): void => {
+    if (n.type === 'list') return // 중첩 항목은 자기 entry 로 처리된다
+    if (n.type === 'inlineCode') {
+      values.push(n.value)
+      sawCode = true
+      return
     }
-    for (const c of n.children ?? []) collect(c, true, sec)
+    if (n.type === 'text' && !sawCode) before += n.value
+    for (const c of n.children ?? []) walk(c)
+  }
+  for (const c of li.children ?? []) walk(c)
+  const m = norm(before).match(/^([^:]+):/)
+  const label = m ? norm(m[1]) : null
+  return { label: label || null, values, text: norm(before) }
+}
+
+// 각 listItem 을 정확히 한 번 방문한다(중첩은 부모의 list 자식을 통해서만 진입).
+function collectItems(n: any, sec: SpecSection): void {
+  if (n.type === 'listItem') {
+    const e = itemEntry(n)
+    if (e.values.length) {
+      sec.entries.push({ label: e.label, values: e.values })
+      sec.copies.push(...e.values)
+    } else if (LEGACY_LABEL.test(e.text)) {
+      sec.legacyLabels.push(e.text)
+    }
+    for (const c of n.children ?? []) if (c.type === 'list') collectItems(c, sec)
     return
   }
-  for (const c of n.children ?? []) collect(c, inListItem, sec)
+  for (const c of n.children ?? []) collectItems(c, sec)
 }
 
 // SPEC.md 를 절(heading) 단위로 분해하고, 각 절의 명시 카피를 추출한다.
@@ -41,12 +60,13 @@ export function parseSpec(md: string): SpecSection[] {
       cur = {
         name: norm(nodeText(node)),
         line: node.position.start.line,
+        entries: [],
         copies: [],
         legacyLabels: [],
       }
       sections.push(cur)
     } else if (cur) {
-      collect(node, false, cur)
+      collectItems(node, cur)
     }
   }
   return sections

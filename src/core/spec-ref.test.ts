@@ -100,3 +100,22 @@ test('타이틀:/내용: 이외의 콜론 산문은 legacy 로 오탐하지 않�
   assert.deepEqual(sec.copies, [])
   assert.deepEqual(sec.legacyLabels, [])
 })
+
+test('entries: 라벨은 첫 백틱 이전 텍스트의 첫 콜론 앞부분', () => {
+  const sec = parseSpec(
+    ['# S', '', '- 타이틀: `값1`', '- Y: TOAST |> `값2`', '- `무명`'].join('\n'),
+  )[0]
+  assert.deepEqual(
+    sec.entries.map((e) => e.label),
+    ['타이틀', 'Y', null],
+  )
+  assert.deepEqual(
+    sec.entries.map((e) => e.values),
+    [['값1'], ['값2'], ['무명']],
+  )
+})
+
+test('entries: 백틱 뒤 텍스트는 라벨에 안 섞인다 (값이 콜론을 품어도)', () => {
+  const sec = parseSpec(['# S', '', '- `주의: 값` 이후 설명'].join('\n'))[0]
+  assert.deepEqual(sec.entries, [{ label: null, values: ['주의: 값'] }])
+})

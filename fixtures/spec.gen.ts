@@ -1,7 +1,6 @@
-// 생성됨: SPEC.md → 이 파일. 직접 수정 금지 (md를 고치고 재생성).
-// flat 참조 모델: 절 > 이름 > 값. 키(이름)는 작성자/LLM의 네이밍 자유,
-// check:gen 은 값만 SPEC 카피와 대조한다.
+// 생성됨 — 직접 수정 금지. SPEC.md 를 고치고 재생성할 것: pnpm gen fixtures/SPEC.md --out fixtures/spec.gen.ts
 export const SPEC = {
+  '자동 접수 설정': {},
   '저장 / 미저장 시 이탈': {
     저장완료: '진료실별 자동 접수 설정을 저장했어요.',
     타이틀: '자동 접수 설정을 중단하시겠어요?',
