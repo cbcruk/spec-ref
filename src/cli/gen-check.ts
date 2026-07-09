@@ -4,27 +4,36 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { parseSpec } from '../core/spec-ref.ts'
 
-// 생성된 .ts에서 '값 위치' 문자열 리터럴만 뽑는다.
-// 프로퍼티 키(`"타이틀":`)와 import/export 지정자(`from './x.ts'`)는 제외.
-export function extractStringValues(src: string, fileName: string): Set<string> {
+// 값 위치(value position)의 문자열 리터럴인가 — 포함 규칙.
+// 프로퍼티 초기값·배열 원소·변수 초기값만 값으로 센다. 그 밖의 위치
+// (프로퍼티 키·computed key·element access·import 지정자·호출 인자 등)는
+// 카피 값이 아니므로 제외된다. 제외 목록을 늘리는 대신 포함 조건을 고정한다.
+function isValuePosition(n: ts.Node): boolean {
+  let cur: ts.Node = n
+  let parent = cur.parent
+  while (
+    parent &&
+    (ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isParenthesizedExpression(parent))
+  ) {
+    cur = parent
+    parent = cur.parent
+  }
+  if (!parent) return false
+  if (ts.isPropertyAssignment(parent) && parent.initializer === cur) return true
+  if (ts.isArrayLiteralExpression(parent)) return true
+  if (ts.isVariableDeclaration(parent) && parent.initializer === cur) return true
+  return false
+}
+
+// 생성된 .ts 의 값 위치 문자열들을 문서 순서·중복 보존으로 뽑는다(슬롯 대조용).
+export function extractStringValues(src: string, fileName: string): string[] {
   const sf = ts.createSourceFile(fileName, src, ts.ScriptTarget.Latest, true)
-  const out = new Set<string>()
-
-  const isPropertyKey = (n: ts.Node): boolean =>
-    !!n.parent &&
-    ((ts.isPropertyAssignment(n.parent) && n.parent.name === n) ||
-      (ts.isPropertySignature(n.parent) && n.parent.name === n))
-
-  const isModuleSpecifier = (n: ts.Node): boolean =>
-    !!n.parent && (ts.isImportDeclaration(n.parent) || ts.isExportDeclaration(n.parent))
-
+  const out: string[] = []
   const visit = (n: ts.Node): void => {
-    if (
-      (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) &&
-      !isPropertyKey(n) &&
-      !isModuleSpecifier(n)
-    ) {
-      out.add(n.text)
+    if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && isValuePosition(n)) {
+      out.push(n.text)
     }
     ts.forEachChild(n, visit)
   }
@@ -35,35 +44,51 @@ export function extractStringValues(src: string, fileName: string): Set<string> 
 export interface GenReport {
   spec: string
   gen: string
-  missing: string[] // SPEC 카피인데 생성물에 없음 → 누락
+  missing: string[] // SPEC 카피 슬롯 수보다 생성물 출현이 적음 → 누락
   hallucinated: string[] // 생성물 값인데 SPEC 어디에도 없음 → 환각/오타
-  copies: number
+  legacyLabels: string[] // 옛 규약(백틱 없는 타이틀:/내용:) 항목 — 보호 밖, 마이그레이션 필요
+  copies: number // SPEC 카피 슬롯 총수 (distinct 아님)
   ok: boolean
 }
 
+const countBy = (xs: string[]): Map<string, number> => {
+  const m = new Map<string, number>()
+  for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1)
+  return m
+}
+
 // 순수 로직: SPEC.md 텍스트와 생성물 .ts 텍스트를 받아 충실성을 대조한다.
-// 결정적 · 오프라인 · 컴파일러 지식 불필요(집합 diff). LLM 생성물을 감싸는 그물.
+// 슬롯(multiset) 대조 — 같은 카피가 두 절에 있으면 생성물에도 두 번 실려야 한다.
+// (전엔 Set 이라 한 번만 실려도 통과 → 절 하나가 통째로 빠져도 green 이었다.)
+// 단, 생성물이 정당한 카피를 더 많이 싣는 것(초과 출현)은 허용한다.
 export function checkGenContent(
   specMd: string,
   genTs: string,
   meta: { spec: string; gen: string },
 ): GenReport {
   const secs = parseSpec(specMd)
-  const copies = new Set<string>()
-  for (const s of secs) for (const c of s.copies) copies.add(c)
+  const specSlots: string[] = []
+  const legacyLabels: string[] = []
+  for (const s of secs) {
+    specSlots.push(...s.copies)
+    legacyLabels.push(...s.legacyLabels)
+  }
+  const specCount = countBy(specSlots)
+  const genCount = countBy(extractStringValues(genTs, meta.gen))
 
-  const tsValues = extractStringValues(genTs, meta.gen)
+  const missing = [...specCount.entries()]
+    .filter(([c, n]) => (genCount.get(c) ?? 0) < n)
+    .map(([c]) => c)
+  const hallucinated = [...genCount.keys()].filter((v) => !specCount.has(v))
 
-  // 생성물 값은 전부 SPEC 카피여야 하고(환각 없음), SPEC 카피는 전부 실려야 한다(누락 없음).
-  const missing = [...copies].filter((c) => !tsValues.has(c))
-  const hallucinated = [...tsValues].filter((v) => !copies.has(v))
   return {
     spec: meta.spec,
     gen: meta.gen,
     missing,
     hallucinated,
-    copies: copies.size,
-    ok: missing.length === 0 && hallucinated.length === 0,
+    legacyLabels,
+    copies: specSlots.length,
+    ok: missing.length === 0 && hallucinated.length === 0 && legacyLabels.length === 0,
   }
 }
 
@@ -76,12 +101,13 @@ export function checkGen(specPath: string, genPath: string): GenReport {
 }
 
 function renderText(r: GenReport): void {
-  console.log(`\n${r.gen}  ← ${r.spec}  (카피 ${r.copies}개)`)
-  for (const m of r.missing) console.log(`  ✗ 누락  SPEC 카피가 생성물에 없음: "${m}"`)
+  console.log(`\n${r.gen}  ← ${r.spec}  (카피 슬롯 ${r.copies}개)`)
+  for (const m of r.missing) console.log(`  ✗ 누락  SPEC 카피 슬롯 수만큼 생성물에 없음: "${m}"`)
   for (const h of r.hallucinated) console.log(`  ✗ 환각  SPEC에 없는 값: "${h}"`)
-  console.log(
-    `\n${r.ok ? '✓ 충실 (모든 카피 verbatim 일치)' : `✗ 문제 ${r.missing.length + r.hallucinated.length}건`}`,
-  )
+  for (const l of r.legacyLabels)
+    console.log(`  ✗ 미마이그레이션  옛 규약 라벨(백틱 없음): "${l}" — 값을 백틱으로 감쌀 것`)
+  const problems = r.missing.length + r.hallucinated.length + r.legacyLabels.length
+  console.log(`\n${r.ok ? '✓ 충실 (모든 카피 verbatim 일치)' : `✗ 문제 ${problems}건`}`)
 }
 
 function main(): void {
