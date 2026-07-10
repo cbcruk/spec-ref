@@ -76,7 +76,7 @@ test('생성물은 충실성 그물(check:gen)을 구성상 통과한다', () =>
 test('fixtures 신선도: 커밋된 spec.gen.ts == 재생성 결과 (dogfood)', () => {
   const md = readFileSync(new URL('../../fixtures/SPEC.md', import.meta.url), 'utf8')
   const committed = readFileSync(new URL('../../fixtures/spec.gen.ts', import.meta.url), 'utf8')
-  const { code, errors } = generate(md, 'pnpm gen fixtures/SPEC.md --out fixtures/spec.gen.ts')
+  const { code, errors } = generate(md, 'spec-ref-gen fixtures/SPEC.md --out fixtures/spec.gen.ts')
   assert.deepEqual(errors, [])
   assert.equal(code, committed)
 })

@@ -8,6 +8,55 @@ SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능�
 
 ---
 
+## 설치
+
+**사전 요구사항:** Node.js `18` 이상(개발·CI는 `22`에서 검증).
+
+### 설치형 CLI — 다른 프로젝트에서
+
+패키지로 설치하면 두 개의 bin 이 생긴다. 런타임 의존성은 `mdast-util-from-markdown` 과 `typescript`(생성물 파싱용)뿐 — `tsx` 없이 순수 node 로 실행된다.
+
+```bash
+pnpm add -D spec-ref                                # 또는 npm i -D / yarn add -D
+npx spec-ref-gen <spec.md> --out src/spec.gen.ts    # SPEC.md → 참조 가능한 .ts
+npx spec-ref-check <spec.md> src/spec.gen.ts        # 충실성 검사
+```
+
+| 명령                                           | 하는 일                                |
+| ---------------------------------------------- | -------------------------------------- |
+| `spec-ref-gen <spec.md>`                       | 생성 결과를 stdout 으로                |
+| `spec-ref-gen <spec.md> --out <spec.gen.ts>`   | 파일로 생성                            |
+| `spec-ref-gen <spec.md> --check <spec.gen.ts>` | 신선도 게이트 — 낡았으면 exit 1 (CI용) |
+| `spec-ref-check <spec.md> <spec.gen.ts>`       | 충실성 그물 (수동/LLM 생성물 검증)     |
+| `spec-ref-check --json …`                      | 위 결과를 기계 판독 JSON 으로          |
+
+CI 는 `spec-ref-gen <spec.md> --check <gen.ts>` + `tsc` 두 줄이면 된다. 코어(`parseSpec`)는 라이브러리로도 쓸 수 있다: `import { parseSpec } from 'spec-ref'`.
+
+### 로컬 설치 — 배포 없이 내 머신에서 테스트
+
+npm 배포 전에 전역 명령으로 바로 써보려면 이 저장소를 클론한 뒤 링크한다:
+
+```bash
+pnpm link:local     # = pnpm build && npm link → 전역 spec-ref-gen / spec-ref-check
+spec-ref-gen ~/work/any-project/SPEC.md --out ~/work/any-project/spec.gen.ts   # 어디서든
+```
+
+전역 명령은 저장소의 `dist/` 를 심볼릭으로 가리킨다 — 소스를 고치면 `pnpm build`(또는 반복 중이라면 `pnpm build:watch` 를 한 터미널에 띄워둠)로 다시 컴파일하면 전역 명령에 그대로 반영된다. 해제는 `npm unlink -g spec-ref`.
+
+> pnpm 네이티브로 링크하려면 최초 1회 `pnpm setup` 후 `pnpm build && pnpm link --global`. 전역 bin 디렉토리가 없으면(`ERR_PNPM_NO_GLOBAL_BIN_DIR`) `pnpm setup` 이 그걸 만든다. `npm link` 는 그 설정 없이도 동작한다.
+
+### 저장소 개발
+
+```bash
+git clone https://github.com/cbcruk/spec-ref.git && cd spec-ref
+pnpm i && pnpm test   # 36개 통과하면 정상
+pnpm build            # tsc → dist/ (bin·라이브러리). 배포 시 prepublishOnly 가 자동 실행
+```
+
+dev 스크립트(`pnpm gen`·`pnpm check:gen`)는 `tsx`로 소스를 직접 돌려 빌드 없이 반복한다. `dist/` 는 gitignore 대상(배포 산출물).
+
+---
+
 ## 접근 — SPEC.md 를 `.ts` 로 투영
 
 SPEC 카피를 "참조 가능"하게 만들려고 마크다운을 앵커로 검증하는 대신, **이미 참조 가능한 것(TS 모듈)** 으로 바꾼다.
@@ -47,16 +96,7 @@ export const LEAVE_HEADER = SPEC['저장 / 미저장 시 이탈'].타이틀
 - 타이틀: `자동 접수 설정을 중단하시겠어요?`
 ```
 
-**라벨(콜론 앞)이 곧 생성물의 키다.** 이러면 md→ts 전체가 결정적이 되어 LLM이 루프에서 빠진다:
-
-```bash
-pnpm i                                        # mdast-util-from-markdown, tsx, typescript
-pnpm gen <spec.md>                            # 생성 결과를 stdout 으로
-pnpm gen <spec.md> --out <spec.gen.ts>        # 파일로 생성
-pnpm gen <spec.md> --check <spec.gen.ts>      # 신선도 게이트 — md 를 고치고 재생성 안 했으면 exit 1
-pnpm gen:fixtures · pnpm gen:check:fixtures   # fixtures/ 예시
-pnpm test                                     # node:test 유닛 (tsx --test)
-```
+**라벨(콜론 앞)이 곧 생성물의 키다.** 이러면 md→ts 전체가 결정적이 되어 LLM이 루프에서 빠진다. (명령은 [설치](#설치)의 표 참고. `pnpm gen:fixtures` · `pnpm gen:check:fixtures` 로 `fixtures/` 예시를 바로 돌려볼 수 있다.)
 
 - 이름 없는 카피(`` - `값` ``)는 절의 `copies: []` 배열로 실리고 경고가 뜬다 — 라벨을 붙이면 이름으로 참조된다.
 - 한 라벨에 백틱이 여럿이면 배열로: `` - 목록: `가` 또는 `나` `` → `목록: ['가', '나']`.
@@ -93,12 +133,13 @@ pnpm check:gen:fixtures
 src/core/spec-ref.ts        코어 (순수) — parseSpec(md): SPEC → 절·entries(라벨+값)·카피 슬롯
   · spec-ref.types.ts       도메인 타입 (SpecSection · SpecEntry)
   · spec-ref.utils.ts       순수 헬퍼 (norm · mdast 순회)
-      │
-      ├── src/cli/gen.ts         결정적 생성기 (md → spec.gen.ts, --check 신선도 게이트)
-      └── src/cli/gen-check.ts   충실성 그물 (생성기를 안 거친 생성물 검증, exit 1)
+      │  (라이브러리·실행 분리)
+      ├── src/cli/gen.ts         생성기 로직 — generate() · runGen()
+      ├── src/cli/gen-check.ts   그물 로직 — checkGenContent() · runCheckGen()
+      └── src/bin/*.ts           #!/usr/bin/env node 진입점 (bin 으로 매핑)
 ```
 
-두 CLI 는 같은 `parseSpec` 을 공유한다. **이름 규약을 지킨 md 는 `gen`으로 결정적 생성**(LLM 불필요), 자유형 md 는 LLM/수동 생성 후 `check:gen` 그물로 검증한다.
+라이브러리(순수 export)와 bin(항상 실행되는 얇은 진입점)을 나눠, 설치 후 symlink 로 실행돼도 안전하다(진입 가드 불필요). `tsc -p tsconfig.build.json` 이 `dist/` 로 컴파일 — 런타임에 `tsx` 불필요. **이름 규약을 지킨 md 는 `gen`으로 결정적 생성**(LLM 불필요), 자유형 md 는 LLM/수동 생성 후 `check:gen` 그물로 검증한다.
 
 ---
 
@@ -112,10 +153,14 @@ src/
     spec-ref.types.ts    도메인 타입 (SpecSection · SpecEntry)
     spec-ref.utils.ts    순수 헬퍼 (norm · mdast 순회)
   cli/
-    gen.ts               결정적 생성기 (md → spec.gen.ts, --out/--check)
+    gen.ts               생성기 로직 — generate() · runGen()
     gen.test.ts          generate 유닛 테스트 + fixtures 신선도 dogfood
-    gen-check.ts         충실성 그물 (md↔ts 카피 슬롯 대조, --json)
+    gen-check.ts         그물 로직 — checkGenContent() · runCheckGen()
     gen-check.test.ts    checkGenContent · extractStringValues 유닛 테스트
+  bin/
+    spec-ref-gen.ts      #!/usr/bin/env node → runGen (bin: spec-ref-gen)
+    spec-ref-check.ts    #!/usr/bin/env node → runCheckGen (bin: spec-ref-check)
+tsconfig.build.json      dist/ 컴파일 설정 (NodeNext, .ts→.js import rewrite)
 fixtures/
   SPEC.md                예시 SPEC (이름 규약: `- 이름: \`값\``)
   spec.gen.ts            gen 이 생성한 투영 (직접 수정 금지 — gen:fixtures 로 재생성)

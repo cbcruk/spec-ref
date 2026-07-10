@@ -1,4 +1,4 @@
-// 생성됨 — 직접 수정 금지. SPEC.md 를 고치고 재생성할 것: pnpm gen fixtures/SPEC.md --out fixtures/spec.gen.ts
+// 생성됨 — 직접 수정 금지. SPEC.md 를 고치고 재생성할 것: spec-ref-gen fixtures/SPEC.md --out fixtures/spec.gen.ts
 export const SPEC = {
   '자동 접수 설정': {},
   '저장 / 미저장 시 이탈': {
