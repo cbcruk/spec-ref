@@ -1,6 +1,4 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { argv } from 'node:process'
-import { fileURLToPath } from 'node:url'
 import { parseSpec } from '../core/spec-ref.ts'
 
 // SPEC.md → spec.gen.ts 결정적 생성기.
@@ -17,7 +15,7 @@ export interface GenResult {
   errors: string[] // 중복 라벨·중복 절·옛 규약 등 — 생성물을 쓰면 안 되는 것
 }
 
-export function generate(specMd: string, regenCmd = 'pnpm gen'): GenResult {
+export function generate(specMd: string, regenCmd = 'spec-ref-gen'): GenResult {
   const secs = parseSpec(specMd)
   const warnings: string[] = []
   const errors: string[] = []
@@ -71,8 +69,7 @@ export function generate(specMd: string, regenCmd = 'pnpm gen'): GenResult {
   return { code: lines.join('\n') + '\n', warnings, errors }
 }
 
-function main(): void {
-  const args = argv.slice(2)
+export function runGen(args: string[]): void {
   const flagValue = (flag: string): string | null => {
     const i = args.indexOf(flag)
     return i >= 0 ? (args[i + 1] ?? null) : null
@@ -88,15 +85,13 @@ function main(): void {
   const [specPath] = args.filter((a, i) => !a.startsWith('--') && !flagArgIdx.has(i))
   const badFlag = (args.includes('--out') && !outPath) || (args.includes('--check') && !checkPath)
   if (!specPath || badFlag) {
-    console.error(
-      'usage: tsx src/cli/gen.ts <spec.md> [--out <spec.gen.ts>] [--check <spec.gen.ts>]',
-    )
+    console.error('usage: spec-ref-gen <spec.md> [--out <spec.gen.ts>] [--check <spec.gen.ts>]')
     process.exit(2)
   }
 
   // --out 과 --check 가 같은 헤더를 만들어야 신선도 비교가 성립한다.
   const target = outPath ?? checkPath
-  const regenCmd = target ? `pnpm gen ${specPath} --out ${target}` : 'pnpm gen'
+  const regenCmd = target ? `spec-ref-gen ${specPath} --out ${target}` : 'spec-ref-gen'
   const { code, warnings, errors } = generate(readFileSync(specPath, 'utf8'), regenCmd)
   for (const w of warnings) console.error(`⚠ ${w}`)
   if (errors.length) {
@@ -121,6 +116,3 @@ function main(): void {
     process.stdout.write(code)
   }
 }
-
-// 직접 실행될 때만 CLI 구동 (테스트에서 import 해도 main 이 돌지 않게).
-if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main()

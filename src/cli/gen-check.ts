@@ -1,6 +1,4 @@
 import { readFileSync } from 'node:fs'
-import { argv } from 'node:process'
-import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { parseSpec } from '../core/spec-ref.ts'
 
@@ -110,12 +108,11 @@ function renderText(r: GenReport): void {
   console.log(`\n${r.ok ? '✓ 충실 (모든 카피 verbatim 일치)' : `✗ 문제 ${problems}건`}`)
 }
 
-function main(): void {
-  const args = argv.slice(2)
+export function runCheckGen(args: string[]): void {
   const json = args.includes('--json')
   const [specPath, genPath] = args.filter((a) => a !== '--json')
   if (!specPath || !genPath) {
-    console.error('usage: tsx src/cli/gen-check.ts [--json] <spec.md> <spec.gen.ts>')
+    console.error('usage: spec-ref-check [--json] <spec.md> <spec.gen.ts>')
     process.exit(2)
   }
 
@@ -125,6 +122,3 @@ function main(): void {
 
   process.exit(report.ok ? 0 : 1)
 }
-
-// 직접 실행될 때만 CLI 구동 (테스트에서 import 해도 main 이 돌지 않게).
-if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main()

@@ -10,29 +10,37 @@ SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능�
 
 ## 설치
 
-**사전 요구사항:** Node.js `18` 이상(개발·CI는 `22`에서 검증), `pnpm`, `git`.
+**사전 요구사항:** Node.js `18` 이상(개발·CI는 `22`에서 검증).
 
-현재는 **저장소 기반 CLI**다 — npm 패키지로 배포되지 않았으니 클론해서 쓴다:
+### 설치형 CLI — 다른 프로젝트에서
+
+패키지로 설치하면 두 개의 bin 이 생긴다. 런타임 의존성은 `mdast-util-from-markdown` 과 `typescript`(생성물 파싱용)뿐 — `tsx` 없이 순수 node 로 실행된다.
 
 ```bash
-git clone https://github.com/cbcruk/spec-ref.git
-cd spec-ref
-pnpm i          # mdast-util-from-markdown(런타임) + tsx·typescript(실행)
-pnpm test       # 설치 확인 — 36개 통과하면 정상
+pnpm add -D spec-ref                                # 또는 npm i -D / yarn add -D
+npx spec-ref-gen <spec.md> --out src/spec.gen.ts    # SPEC.md → 참조 가능한 .ts
+npx spec-ref-check <spec.md> src/spec.gen.ts        # 충실성 검사
 ```
 
-CLI는 `tsx`로 `.ts`를 직접 실행하는 `pnpm` 스크립트다(별도 빌드 없음):
+| 명령                                           | 하는 일                                |
+| ---------------------------------------------- | -------------------------------------- |
+| `spec-ref-gen <spec.md>`                       | 생성 결과를 stdout 으로                |
+| `spec-ref-gen <spec.md> --out <spec.gen.ts>`   | 파일로 생성                            |
+| `spec-ref-gen <spec.md> --check <spec.gen.ts>` | 신선도 게이트 — 낡았으면 exit 1 (CI용) |
+| `spec-ref-check <spec.md> <spec.gen.ts>`       | 충실성 그물 (수동/LLM 생성물 검증)     |
+| `spec-ref-check --json …`                      | 위 결과를 기계 판독 JSON 으로          |
 
-| 명령                                       | 하는 일                                |
-| ------------------------------------------ | -------------------------------------- |
-| `pnpm gen <spec.md>`                       | 생성 결과를 stdout 으로                |
-| `pnpm gen <spec.md> --out <spec.gen.ts>`   | 파일로 생성                            |
-| `pnpm gen <spec.md> --check <spec.gen.ts>` | 신선도 게이트 — 낡았으면 exit 1 (CI용) |
-| `pnpm check:gen <spec.md> <spec.gen.ts>`   | 충실성 그물 (수동/LLM 생성물 검증)     |
-| `pnpm check:gen --json …`                  | 위 결과를 기계 판독 JSON 으로          |
-| `pnpm test` · `pnpm typecheck`             | 유닛 테스트 · 타입 검사                |
+CI 는 `spec-ref-gen <spec.md> --check <gen.ts>` + `tsc` 두 줄이면 된다. 코어(`parseSpec`)는 라이브러리로도 쓸 수 있다: `import { parseSpec } from 'spec-ref'`.
 
-> **다른 저장소에서 쓰려면** — 아직 글로벌 설치용 `bin` 도, npm 배포도 없다. 지금은 이 저장소를 클론하거나 서브모듈로 넣고 SPEC 경로를 인자로 넘긴다. 진짜 설치형 CLI(`npx spec-gen …`)로 만들려면 ①`bin` 엔트리 ②`tsc` 빌드(런타임 `tsx` 의존 제거) ③외부 설치를 깨는 `prepare: vp config` 정리가 필요하다 — 요청 시 진행.
+### 저장소 개발
+
+```bash
+git clone https://github.com/cbcruk/spec-ref.git && cd spec-ref
+pnpm i && pnpm test   # 36개 통과하면 정상
+pnpm build            # tsc → dist/ (bin·라이브러리). 배포 시 prepublishOnly 가 자동 실행
+```
+
+dev 스크립트(`pnpm gen`·`pnpm check:gen`)는 `tsx`로 소스를 직접 돌려 빌드 없이 반복한다. `dist/` 는 gitignore 대상(배포 산출물).
 
 ---
 
@@ -112,12 +120,13 @@ pnpm check:gen:fixtures
 src/core/spec-ref.ts        코어 (순수) — parseSpec(md): SPEC → 절·entries(라벨+값)·카피 슬롯
   · spec-ref.types.ts       도메인 타입 (SpecSection · SpecEntry)
   · spec-ref.utils.ts       순수 헬퍼 (norm · mdast 순회)
-      │
-      ├── src/cli/gen.ts         결정적 생성기 (md → spec.gen.ts, --check 신선도 게이트)
-      └── src/cli/gen-check.ts   충실성 그물 (생성기를 안 거친 생성물 검증, exit 1)
+      │  (라이브러리·실행 분리)
+      ├── src/cli/gen.ts         생성기 로직 — generate() · runGen()
+      ├── src/cli/gen-check.ts   그물 로직 — checkGenContent() · runCheckGen()
+      └── src/bin/*.ts           #!/usr/bin/env node 진입점 (bin 으로 매핑)
 ```
 
-두 CLI 는 같은 `parseSpec` 을 공유한다. **이름 규약을 지킨 md 는 `gen`으로 결정적 생성**(LLM 불필요), 자유형 md 는 LLM/수동 생성 후 `check:gen` 그물로 검증한다.
+라이브러리(순수 export)와 bin(항상 실행되는 얇은 진입점)을 나눠, 설치 후 symlink 로 실행돼도 안전하다(진입 가드 불필요). `tsc -p tsconfig.build.json` 이 `dist/` 로 컴파일 — 런타임에 `tsx` 불필요. **이름 규약을 지킨 md 는 `gen`으로 결정적 생성**(LLM 불필요), 자유형 md 는 LLM/수동 생성 후 `check:gen` 그물로 검증한다.
 
 ---
 
@@ -131,10 +140,14 @@ src/
     spec-ref.types.ts    도메인 타입 (SpecSection · SpecEntry)
     spec-ref.utils.ts    순수 헬퍼 (norm · mdast 순회)
   cli/
-    gen.ts               결정적 생성기 (md → spec.gen.ts, --out/--check)
+    gen.ts               생성기 로직 — generate() · runGen()
     gen.test.ts          generate 유닛 테스트 + fixtures 신선도 dogfood
-    gen-check.ts         충실성 그물 (md↔ts 카피 슬롯 대조, --json)
+    gen-check.ts         그물 로직 — checkGenContent() · runCheckGen()
     gen-check.test.ts    checkGenContent · extractStringValues 유닛 테스트
+  bin/
+    spec-ref-gen.ts      #!/usr/bin/env node → runGen (bin: spec-ref-gen)
+    spec-ref-check.ts    #!/usr/bin/env node → runCheckGen (bin: spec-ref-check)
+tsconfig.build.json      dist/ 컴파일 설정 (NodeNext, .ts→.js import rewrite)
 fixtures/
   SPEC.md                예시 SPEC (이름 규약: `- 이름: \`값\``)
   spec.gen.ts            gen 이 생성한 투영 (직접 수정 금지 — gen:fixtures 로 재생성)
