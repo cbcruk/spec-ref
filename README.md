@@ -32,6 +32,19 @@ npx spec-ref-check <spec.md> src/spec.gen.ts        # 충실성 검사
 
 CI 는 `spec-ref-gen <spec.md> --check <gen.ts>` + `tsc` 두 줄이면 된다. 코어(`parseSpec`)는 라이브러리로도 쓸 수 있다: `import { parseSpec } from 'spec-ref'`.
 
+### 로컬 설치 — 배포 없이 내 머신에서 테스트
+
+npm 배포 전에 전역 명령으로 바로 써보려면 이 저장소를 클론한 뒤 링크한다:
+
+```bash
+pnpm link:local     # = pnpm build && npm link → 전역 spec-ref-gen / spec-ref-check
+spec-ref-gen ~/work/any-project/SPEC.md --out ~/work/any-project/spec.gen.ts   # 어디서든
+```
+
+전역 명령은 저장소의 `dist/` 를 심볼릭으로 가리킨다 — 소스를 고치면 `pnpm build`(또는 반복 중이라면 `pnpm build:watch` 를 한 터미널에 띄워둠)로 다시 컴파일하면 전역 명령에 그대로 반영된다. 해제는 `npm unlink -g spec-ref`.
+
+> pnpm 네이티브로 링크하려면 최초 1회 `pnpm setup` 후 `pnpm build && pnpm link --global`. 전역 bin 디렉토리가 없으면(`ERR_PNPM_NO_GLOBAL_BIN_DIR`) `pnpm setup` 이 그걸 만든다. `npm link` 는 그 설정 없이도 동작한다.
+
 ### 저장소 개발
 
 ```bash

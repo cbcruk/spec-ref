@@ -25,6 +25,8 @@
     "check:gen": "tsx src/bin/spec-ref-check.ts",
     "check:gen:fixtures": "tsx src/bin/spec-ref-check.ts fixtures/SPEC.md fixtures/spec.gen.ts",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/bin/*.js",
+    "build:watch": "tsc -w -p tsconfig.build.json",
+    "link:local": "pnpm build && npm link",
     "test": "tsx --test",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm build",
