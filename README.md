@@ -8,6 +8,34 @@ SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능�
 
 ---
 
+## 설치
+
+**사전 요구사항:** Node.js `18` 이상(개발·CI는 `22`에서 검증), `pnpm`, `git`.
+
+현재는 **저장소 기반 CLI**다 — npm 패키지로 배포되지 않았으니 클론해서 쓴다:
+
+```bash
+git clone https://github.com/cbcruk/spec-ref.git
+cd spec-ref
+pnpm i          # mdast-util-from-markdown(런타임) + tsx·typescript(실행)
+pnpm test       # 설치 확인 — 36개 통과하면 정상
+```
+
+CLI는 `tsx`로 `.ts`를 직접 실행하는 `pnpm` 스크립트다(별도 빌드 없음):
+
+| 명령                                       | 하는 일                                |
+| ------------------------------------------ | -------------------------------------- |
+| `pnpm gen <spec.md>`                       | 생성 결과를 stdout 으로                |
+| `pnpm gen <spec.md> --out <spec.gen.ts>`   | 파일로 생성                            |
+| `pnpm gen <spec.md> --check <spec.gen.ts>` | 신선도 게이트 — 낡았으면 exit 1 (CI용) |
+| `pnpm check:gen <spec.md> <spec.gen.ts>`   | 충실성 그물 (수동/LLM 생성물 검증)     |
+| `pnpm check:gen --json …`                  | 위 결과를 기계 판독 JSON 으로          |
+| `pnpm test` · `pnpm typecheck`             | 유닛 테스트 · 타입 검사                |
+
+> **다른 저장소에서 쓰려면** — 아직 글로벌 설치용 `bin` 도, npm 배포도 없다. 지금은 이 저장소를 클론하거나 서브모듈로 넣고 SPEC 경로를 인자로 넘긴다. 진짜 설치형 CLI(`npx spec-gen …`)로 만들려면 ①`bin` 엔트리 ②`tsc` 빌드(런타임 `tsx` 의존 제거) ③외부 설치를 깨는 `prepare: vp config` 정리가 필요하다 — 요청 시 진행.
+
+---
+
 ## 접근 — SPEC.md 를 `.ts` 로 투영
 
 SPEC 카피를 "참조 가능"하게 만들려고 마크다운을 앵커로 검증하는 대신, **이미 참조 가능한 것(TS 모듈)** 으로 바꾼다.
@@ -47,16 +75,7 @@ export const LEAVE_HEADER = SPEC['저장 / 미저장 시 이탈'].타이틀
 - 타이틀: `자동 접수 설정을 중단하시겠어요?`
 ```
 
-**라벨(콜론 앞)이 곧 생성물의 키다.** 이러면 md→ts 전체가 결정적이 되어 LLM이 루프에서 빠진다:
-
-```bash
-pnpm i                                        # mdast-util-from-markdown, tsx, typescript
-pnpm gen <spec.md>                            # 생성 결과를 stdout 으로
-pnpm gen <spec.md> --out <spec.gen.ts>        # 파일로 생성
-pnpm gen <spec.md> --check <spec.gen.ts>      # 신선도 게이트 — md 를 고치고 재생성 안 했으면 exit 1
-pnpm gen:fixtures · pnpm gen:check:fixtures   # fixtures/ 예시
-pnpm test                                     # node:test 유닛 (tsx --test)
-```
+**라벨(콜론 앞)이 곧 생성물의 키다.** 이러면 md→ts 전체가 결정적이 되어 LLM이 루프에서 빠진다. (명령은 [설치](#설치)의 표 참고. `pnpm gen:fixtures` · `pnpm gen:check:fixtures` 로 `fixtures/` 예시를 바로 돌려볼 수 있다.)
 
 - 이름 없는 카피(`` - `값` ``)는 절의 `copies: []` 배열로 실리고 경고가 뜬다 — 라벨을 붙이면 이름으로 참조된다.
 - 한 라벨에 백틱이 여럿이면 배열로: `` - 목록: `가` 또는 `나` `` → `목록: ['가', '나']`.
