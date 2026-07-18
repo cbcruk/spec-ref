@@ -108,3 +108,61 @@ TS급 새 언어가 아니라 **표준 마크다운 + 참조 규약 + 린터**.
 - 진단 range를 `@spec` 태그 줄로
 - 동작 참조(테스트를 가리키는 참조)로 확장 — 카피 너머
 - 다중 SPEC.md 규모에서의 인덱스 성능/증분화
+
+---
+
+# 부록: 타 산업 참조 — 현행 방향의 외부 검증
+
+> ⚠️ 위 본문은 **피봇 이전**(`@spec` 앵커 + CLI/LSP) 기록이다. 이 부록은 반대로 **현행 방향**(SPEC.md → `spec.gen.ts` 결정적 생성 + `check:gen` 충실성 그물)이 소프트웨어 밖 성숙 산업들의 관행과 어떻게 맞물리는지를 다룬다. 근거는 심층 리서치(26소스 → 58클레임 → 20 confirmed / 2 refuted, 각 클레임 3표 적대적 검증)와 사후 재검증이다. 검증되지 않은 것은 그렇게 표시한다.
+
+## 프레임: 성숙 산업이 수렴하는 삼각형
+
+명세↔구현 정합성을 강제하는 성숙 산업들은 독립적으로 같은 삼각형에 도달한다: **(1) 제약된 표기**(자유 산문도 완전 형식언어도 아닌 중간), **(2) _먼저_ 표준화된 공유 어휘**, **(3) 결정론적 검증**. 그리고 전통적으로 **권위는 물리적 실패에서** 나온다(공차 밖이면 폐기). 이미 조사된 물리 도메인: 항공(EARS, ISO 29148), 건축(IDS/BIM, 공유어휘=IFC), 기계(GD&T, 공유어휘=datum, 권위=물리측정).
+
+핵심 질문은 **비물리·카피 도메인이 물리적 ground truth 없이 이 삼각형을 완성할 수 있는가**였다.
+
+## 대조표 (비물리 도메인)
+
+| 도메인                   | (1) 표기                  | (2) 공유어휘 먼저?                  | (3) 결정론적 검증                     | 권위의 출처                      | 생성/제약 |
+| ------------------------ | ------------------------- | ----------------------------------- | ------------------------------------- | -------------------------------- | --------- |
+| 금융 **XBRL**            | XBRL/XML instance         | **O — taxonomy**                    | **O — Formula(XPath assertion)**      | 규제 mandate + conformance suite | 제약      |
+| i18n **MessageFormat 2** | 메시지 문법               | 약함(데이터모델 O, 용어어휘 _반증_) | **O 단 형태만**(구조·placeholder)     | Unicode 표준 + JSON suite        | 제약      |
+| 접근성 **WCAG**          | success criteria          | 부분(ARIA)                          | **X — 하이브리드, AA 50중 16만 자동** | 법·규제                          | 제약      |
+| 법률 **Catala**          | Catala DSL(default logic) | 법령 = 어휘                         | **O — F\* 증명, 정부 구현 버그 적발** | 법적 강제력·법령                 | **생성**  |
+| 계약 **CiceroMark**      | 산문 + 타입변수 임베드    | 템플릿 모델                         | O — 엄격 문법                         | 법적 강제력                      | 생성적    |
+| 게임 **Yarn Spinner**    | `.yarn` 소스              | 라인 `id`(로컬 앵커)                | **O — `lock` 해시 드리프트 검출**     | 없음(제품), ground truth=소스    | 제약      |
+
+출처: XBRL [validation](https://specifications.xbrl.org/validation.html)·[implementingrules](https://www.xbrl.org/guidance/implementingrules/), MF2 [TR35](https://www.unicode.org/reports/tr35/tr35-73/tr35-messageFormat.html)·[wg](https://github.com/unicode-org/message-format-wg), WCAG [conformance](https://www.w3.org/WAI/WCAG22/Understanding/conformance)·[Deque](https://www.deque.com/automated-accessibility-coverage-report/), Catala [POPL21](https://dl.acm.org/doi/10.1145/3473582)·[SSRN](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4291177), [CiceroMark](https://docs.accordproject.org/docs/markup-cicero.html), [Yarn Spinner](https://github.com/YarnSpinnerTool/YSDocs/blob/main/docs/yarn-spinner-for-unity/assets-and-localization/inbuilt-localisation.md).
+_조사했으나 confirmed 증거를 못 얻은 것: 의료(HL7 FHIR·SNOMED), 금융 메시징(ISO 20022), i18n(XLIFF QA) — 소스가 unreliable로 걸러짐._
+
+## 세 가지 결론
+
+**1. 비물리에서도 삼각형은 선다 — 권위의 대체물은 conformance suite.**
+XBRL이 깨끗한 증거다: 검증 규칙이 taxonomy 안에 살고("business validation rules ... to all the users of the taxonomy"), Formula assertion이 결정론적으로 판정하며("valid if all related assertions evaluate to true"), conformance suite("some comply, some don't")가 물리적 실패를 대신하는 기준이 된다. MF2도 독립적으로 JSON conformance suite를 갖춘다. **물리적 ground truth의 자리를 `규제/표준 + conformance 테스트 묶음`이 채운다 — 이게 spec-ref의 `fixtures/` + 테스트가 미니어처로 하는 일이다.**
+
+**2. 형태는 검증, 의미는 사람 — 성숙 표준도 예외 없다.**
+MF2는 메시지 _구조_(placeholder·plural)만 결정론 검증하고 카피가 *맞는 문장*인지는 안 본다(그리고 "MF2가 IFC 같은 합의 용어 어휘를 준다"는 클레임은 3-0으로 반증됨). WCAG은 스스로 "combination of automated testing and human evaluation"이라 명시하고 자동 커버리지가 소수(AA 16/50). **spec-ref의 `check:gen`(verbatim 존재 검사)은 정확히 이 형태-다리에 앉는다** — "맞는 문구냐"(의미)는 XBRL·MF2·WCAG가 그렇듯 사람/권위의 몫으로 남긴다. spec-ref는 이 표준들과 같은 가족·같은 경계에 있다.
+
+**3. 생성 vs 제약 둘 다 실재하며, copy/behavior에 매핑된다.**
+법률(Catala)은 **생성적**이다 — "correct-by-construction executable specification", 명세가 곧 구현(Gonzalez "충분히 정밀한 명세는 코드다"의 실물). 나머지는 전부 **제약적**(독립 산출물을 검사). spec-ref는 둘 다 걸친다: `gen`(생성) + `check:gen`(제약). 그리고 이 선이 **copy/behavior 선과 겹친다** — 카피는 md→ts가 전사(total) 함수라 *생성*이 성립(명세가 곧 상수), 행동은 전사 불가라 *제약/테스트*만 가능.
+
+## 가장 가까운 사촌: Yarn Spinner = 우리 `--check` (재검증 완료)
+
+게임 대사 툴 Yarn Spinner가 출하 제품에서 spec-ref의 신선도 게이트를 이미 구현하고 있다 — **authored player-facing 카피**에 대해:
+
+| spec-ref                                   | Yarn Spinner                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `gen --check` = 재생성 후 diff → 낡음 감지 | `lock` 컬럼 = "unique value ... to detect if the line has been modified since the strings file was generated" |
+| exit 1 "낡음"                              | 바뀐 라인에 `NEEDS UPDATE` 도장                                                                               |
+| 라벨 = 키 (SPEC 카피 ↔ 코드 참조 앵커)     | 라인 `id` (소스 ↔ 번역 앵커)                                                                                  |
+
+권위는 외부에 없고(제품 툴) ground truth는 소스 `.yarn`뿐 — spec-ref가 SPEC.md를 그렇게 쓰는 것과 동일. **즉 authored 카피는 산업 표준 어휘도 물리적 ground truth도 없이, 프로젝트 스케일에서 `제약 표기 + 결정론적 드리프트 검출`만으로 충분하다는 실증.**
+
+## 이식 결론 (스케일을 붙여 정정)
+
+- **산업 스케일: 이식 안 됨.** UI 카피엔 IFC/datum/taxonomy 같은 *범산업 표준 어휘*가 없고, i18n(MF2)조차 그 다리를 못 세웠다(반증).
+- **프로젝트 스케일: 이식 됨.** XBRL·MF2·Yarn이 보여준 건 _범산업_ 어휘가 아니라 **권위 있는 로컬 어휘 + conformance 기제**면 삼각형이 선다는 것. spec-ref에서 **SPEC.md = 로컬 IFC(권위 있는 어휘), `check:gen`/`gen --check` = 로컬 conformance suite**.
+
+## 훔쳐올 것: per-entry 신선도 (규모 커질 때)
+
+Yarn은 **per-line 저장 해시**라 _어느 라인이_ 낡았는지 콕 집는다(`NEEDS UPDATE`가 그 라인에만). spec-ref의 `--check`는 **whole-file 재생성 diff**라 "파일이 낡음"까지만 안다. 카피 코퍼스가 커지면 **각 카피에 소스 해시를 달아 바뀐 카피만 표시**하는 per-entry 신선도가 실질 개선 — Yarn이 그 값어치를 실증한다. 지금 규모엔 과잉이지만 1순위 후보.
