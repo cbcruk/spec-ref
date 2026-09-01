@@ -2,7 +2,7 @@
 
 SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능한 형태로 소비**하게 만드는 도구. SPEC.md를 `.ts`로 투영하고(`spec.gen.ts`), 코드는 문자열을 재복사하지 않고 그 **SPEC 상수를 가져다 쓴다**. **SPEC 상수를 소비하는 코드에선** 값 drift가 구조적으로 불가능해지고, 참조 무결성은 `tsc`가, 생성물 충실성은 `check:gen`이 지킨다.
 
-> 보증의 범위 — 이 보증은 소비를 **선택한** 코드에만 미친다. 어떤 도구도 "모든 카피성 문자열이 SPEC 상수를 소비하는가"는 강제하지 않으므로, 개발자가 문구를 하드코딩으로 재복사하면 그 문자열은 그물 밖이다. 소비 규약은 코드리뷰의 몫.
+> 보증의 범위 — 값 drift 불가능이라는 보증 자체는 소비를 **선택한** 코드에만 미친다. 다만 "선택했는가"는 더 이상 코드리뷰만의 몫이 아니다 — `spec-ref-scan` 이 소비자 코드를 훑어 **하드코딩 재복사(no-ref)** 를 결정적으로 잡는다. 남는 갭은 SPEC 에 아예 없는 카피와, 동적 접근처럼 정적으로 판정 불가한 소비뿐이다.
 
 핵심 원칙 한 줄: **SPEC은 소스가 아니라 참조 프레임이다. 도구는 감지·보고만 하고 아무것도 고치지 않는다.** (초기 설계 배경은 [`DESIGN.md`](./DESIGN.md) — `@spec` 앵커 + CLI/LSP 검증 시절의 기록이며, 아래 md→ts 방향으로 피봇하기 전 이력이다.)
 
@@ -14,30 +14,40 @@ SPEC 문서가 못 박은 사용자 노출 카피를, 코드가 **참조 가능�
 
 ### 설치형 CLI — 다른 프로젝트에서
 
-패키지로 설치하면 두 개의 bin 이 생긴다. 런타임 의존성은 `mdast-util-from-markdown` 과 `typescript`(생성물 파싱용)뿐 — `tsx` 없이 순수 node 로 실행된다.
+패키지로 설치하면 세 개의 bin 이 생긴다. 런타임 의존성은 `mdast-util-from-markdown` 과 `typescript`(생성물 파싱용)뿐 — `tsx` 없이 순수 node 로 실행된다.
 
 ```bash
 pnpm add -D spec-ref                                # 또는 npm i -D / yarn add -D
 npx spec-ref-gen <spec.md> --out src/spec.gen.ts    # SPEC.md → 참조 가능한 .ts
 npx spec-ref-check <spec.md> src/spec.gen.ts        # 충실성 검사
+npx spec-ref-scan <spec.md> src/spec.gen.ts src     # 소비 검사 (재복사·미소비)
 ```
 
-| 명령                                           | 하는 일                                |
-| ---------------------------------------------- | -------------------------------------- |
-| `spec-ref-gen <spec.md>`                       | 생성 결과를 stdout 으로                |
-| `spec-ref-gen <spec.md> --out <spec.gen.ts>`   | 파일로 생성                            |
-| `spec-ref-gen <spec.md> --check <spec.gen.ts>` | 신선도 게이트 — 낡았으면 exit 1 (CI용) |
-| `spec-ref-check <spec.md> <spec.gen.ts>`       | 충실성 그물 (수동/LLM 생성물 검증)     |
-| `spec-ref-check --json …`                      | 위 결과를 기계 판독 JSON 으로          |
+| 명령                                                 | 하는 일                                 |
+| ---------------------------------------------------- | --------------------------------------- |
+| `spec-ref-gen <spec.md>`                             | 생성 결과를 stdout 으로                 |
+| `spec-ref-gen <spec.md> --out <spec.gen.ts>`         | 파일로 생성                             |
+| `spec-ref-gen <spec.md> --check <spec.gen.ts>`       | 신선도 게이트 — 낡았으면 exit 1 (CI용)  |
+| `spec-ref-check <spec.md> <spec.gen.ts>`             | 충실성 그물 (수동/LLM 생성물 검증)      |
+| `spec-ref-scan <spec.md> <spec.gen.ts> [src…]`       | 소비자 그물 — 하드코딩 재복사·미소비 키 |
+| `spec-ref-check --json …` · `spec-ref-scan --json …` | 위 결과를 기계 판독 JSON 으로           |
 
-CI 는 `spec-ref-gen <spec.md> --check <gen.ts>` + `tsc` 두 줄이면 된다. 코어(`parseSpec`)는 라이브러리로도 쓸 수 있다: `import { parseSpec } from 'spec-ref'`.
+CI 는 `spec-ref-gen <spec.md> --check <gen.ts>` + `spec-ref-scan <spec.md> <gen.ts> src` + `tsc` 세 줄이면 된다. 코어(`parseSpec`)는 라이브러리로도 쓸 수 있다: `import { parseSpec } from 'spec-ref'`.
+
+### 에이전트용 스킬
+
+패키지에 `.claude/skills/spec-ref/SKILL.md` 가 함께 실린다. 코딩 에이전트가 SPEC 카피를 다룰 때의 판단 층(규약 안내, 자유형 md 처리, 검사 실패별 대응)이며, **검증은 여전히 위 CLI 가 결정적으로 한다** — 스킬은 게이트가 아니라 게이트 사용법이다. 설치 후 프로젝트에 복사한다:
+
+```bash
+mkdir -p .claude/skills && cp -r node_modules/spec-ref/.claude/skills/spec-ref .claude/skills/
+```
 
 ### 로컬 설치 — 배포 없이 내 머신에서 테스트
 
 npm 배포 전에 전역 명령으로 바로 써보려면 이 저장소를 클론한 뒤 링크한다:
 
 ```bash
-pnpm link:local     # = pnpm build && npm link → 전역 spec-ref-gen / spec-ref-check
+pnpm link:local     # = pnpm build && npm link → 전역 spec-ref-gen / spec-ref-check / spec-ref-scan
 spec-ref-gen ~/work/any-project/SPEC.md --out ~/work/any-project/spec.gen.ts   # 어디서든
 ```
 
@@ -49,11 +59,11 @@ spec-ref-gen ~/work/any-project/SPEC.md --out ~/work/any-project/spec.gen.ts   #
 
 ```bash
 git clone https://github.com/cbcruk/spec-ref.git && cd spec-ref
-pnpm i && pnpm test   # 36개 통과하면 정상
+pnpm i && pnpm test   # 50개 통과하면 정상
 pnpm build            # tsc → dist/ (bin·라이브러리). 배포 시 prepublishOnly 가 자동 실행
 ```
 
-dev 스크립트(`pnpm gen`·`pnpm check:gen`)는 `tsx`로 소스를 직접 돌려 빌드 없이 반복한다. `dist/` 는 gitignore 대상(배포 산출물).
+dev 스크립트(`pnpm gen`·`pnpm check:gen`·`pnpm scan`)는 `tsx`로 소스를 직접 돌려 빌드 없이 반복한다. `dist/` 는 gitignore 대상(배포 산출물).
 
 ---
 
@@ -127,6 +137,27 @@ pnpm check:gen:fixtures
 
 ---
 
+## 소비자 그물 (`scan`) — 코드가 실제로 상수를 쓰는가
+
+`check:gen` 이 SPEC↔생성물만 보는 데 반해, `scan` 은 그 바깥 — **소비자 코드**를 본다.
+
+```bash
+pnpm scan <spec.md> <spec.gen.ts> [src…]      # 기본 경로는 src
+pnpm scan --json … | --strict | --include-tests
+pnpm scan:fixtures
+```
+
+- **`noRef` (재복사)** — SPEC 카피와 **글자 그대로 같은** 문자열이 소비자 코드에 박혀 있다. 문자열 리터럴·템플릿·JSX 텍스트 어디든 잡고 `파일:줄` 을 준다. 생성물을 안 거친 카피이므로 그물 밖 — 그 리터럴을 SPEC 상수 참조로 바꾸면 된다. **이게 게이트다(exit 1).**
+- **`orphan` (미소비)** — 생성물의 leaf 키인데 아무 코드도 참조하지 않는다. 미구현이거나 지울 카피라는 신호. **기본은 경고고 exit 0** — 판단이 필요한 사실이지 위반이 아니기 때문. `--strict` 로 게이트에 넣을 수 있다.
+
+orphan 판정은 생성물을 `import` 한 파일에서 `SPEC['절'].라벨` 접근 경로를 AST로 추적한다. `const s = SPEC['절']` 같은 **별칭 변수도 따라간다.** 판정할 수 없는 지점 — 동적 인덱스(`SPEC[k]`), 객체를 통째로 넘기기 — 은 전부 **"소비됨"으로 보수적으로** 센다: orphan 을 잘못 지목하느니 놓치는 쪽이다. 따라서 `orphan` 은 과소 보고일 수 있고, 비어 있다고 전부 소비됐다는 뜻은 아니다.
+
+기본적으로 `*.test.*`·`*.spec.*`·`.d.ts`·`node_modules`·`dist` 는 건너뛴다(테스트의 카피 리터럴은 보통 정당하다). `--include-tests` 로 포함시킬 수 있다.
+
+> 여기까지 오면 초기 아키텍처의 `no-ref`·`orphan` 이 다시 덮인다 — 이번엔 `@spec` 앵커가 아니라 **생성물 상수 그래프** 위에서. `genImporters: 0` 이면 스캔 경로가 틀린 것이니 orphan 목록보다 경로를 먼저 의심할 것.
+
+---
+
 ## 아키텍처
 
 ```
@@ -136,10 +167,15 @@ src/core/spec-ref.ts        코어 (순수) — parseSpec(md): SPEC → 절·ent
       │  (라이브러리·실행 분리)
       ├── src/cli/gen.ts         생성기 로직 — generate() · runGen()
       ├── src/cli/gen-check.ts   그물 로직 — checkGenContent() · runCheckGen()
+      ├── src/cli/scan.ts        소비자 그물 — scanContent() · runScan() (TS AST)
       └── src/bin/*.ts           #!/usr/bin/env node 진입점 (bin 으로 매핑)
+
+.claude/skills/spec-ref/SKILL.md   판단 층 (에이전트용) — 위 CLI 를 부르는 절차서
 ```
 
 라이브러리(순수 export)와 bin(항상 실행되는 얇은 진입점)을 나눠, 설치 후 symlink 로 실행돼도 안전하다(진입 가드 불필요). `tsc -p tsconfig.build.json` 이 `dist/` 로 컴파일 — 런타임에 `tsx` 불필요. **이름 규약을 지킨 md 는 `gen`으로 결정적 생성**(LLM 불필요), 자유형 md 는 LLM/수동 생성 후 `check:gen` 그물로 검증한다.
+
+**층의 분업이 이 도구의 전부다.** 판단(자유형 md 해석·키 네이밍·배치·재복사 정리)은 LLM/사람이 하고, 검증(카피 verbatim·슬롯 수·재복사 탐지·미소비 탐지)은 결정적 함수가 한다. 스킬은 판단 층을 문서화한 것이지 게이트가 아니다 — 게이트는 언제나 exit code 다.
 
 ---
 
@@ -157,13 +193,19 @@ src/
     gen.test.ts          generate 유닛 테스트 + fixtures 신선도 dogfood
     gen-check.ts         그물 로직 — checkGenContent() · runCheckGen()
     gen-check.test.ts    checkGenContent · extractStringValues 유닛 테스트
+    scan.ts              소비자 그물 — scanContent() · extractGenKeys() · runScan()
+    scan.test.ts         no-ref · orphan · 별칭/동적 접근 유닛 테스트
   bin/
     spec-ref-gen.ts      #!/usr/bin/env node → runGen (bin: spec-ref-gen)
     spec-ref-check.ts    #!/usr/bin/env node → runCheckGen (bin: spec-ref-check)
+    spec-ref-scan.ts     #!/usr/bin/env node → runScan (bin: spec-ref-scan)
 tsconfig.build.json      dist/ 컴파일 설정 (NodeNext, .ts→.js import rewrite)
 fixtures/
   SPEC.md                예시 SPEC (이름 규약: `- 이름: \`값\``)
   spec.gen.ts            gen 이 생성한 투영 (직접 수정 금지 — gen:fixtures 로 재생성)
+  consumer.ts            소비 규약 예시 (scan 이 no-ref·orphan 을 판정하는 대상)
+.claude/skills/
+  spec-ref/SKILL.md      에이전트 판단 층 (패키지에 함께 배포)
 ```
 
 ---
@@ -172,4 +214,4 @@ fixtures/
 
 초기엔 코드가 `@spec` 주석으로 SPEC 절을 가리키고, CLI(verdict)·LSP(에디터 진단)·VSCode 헤딩 링크 익스텐션이 그 참조를 검증·네비게이션했다. **md→ts 투영으로 피봇하면서** 그 표면들은 은퇴했다 — 값 drift·dead 참조는 `tsc`가, 네비게이션은 네이티브 언어서비스가 대체하기 때문. 남은 건 생성물 충실성 하나뿐이고, 그게 `check:gen`이다. (은퇴한 코드는 git 이력 참고.)
 
-단, 대체 없이 **사라진** 검출 두 가지는 알고 있을 것: 옛 `no-ref`(코드가 SPEC 카피를 하드코딩으로 재복사한 경우)와 `orphan`(어떤 코드도 소비하지 않는 SPEC 카피). 둘 다 소비자 코드를 스캔해야 잡히는데 현 도구는 SPEC↔생성물만 본다 — 위 "보증의 범위"가 이 갭의 다른 얼굴이다.
+피봇 직후 한동안 대체 없이 비어 있던 검출 두 가지 — 옛 `no-ref`(코드가 SPEC 카피를 하드코딩으로 재복사)와 `orphan`(어떤 코드도 소비하지 않는 카피) — 는 `spec-ref-scan` 으로 되돌아왔다. 이번엔 `@spec` 앵커가 아니라 생성물 상수를 뿌리로 삼는 TS AST 추적이라, 결정적이면서 규약 부담도 없다. 남은 갭은 두 개다: SPEC 에 존재하지 않는 카피(도구가 알 도리가 없다)와, 정적으로 판정 불가한 동적 소비(보수적으로 "소비됨"으로 센다).

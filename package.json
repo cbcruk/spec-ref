@@ -4,11 +4,13 @@
   "description": "SPEC.md를 참조 가능한 .ts로 투영하고, 생성물이 SPEC 카피를 verbatim 담았는지 결정적으로 검증하는 도구",
   "bin": {
     "spec-ref-check": "dist/bin/spec-ref-check.js",
-    "spec-ref-gen": "dist/bin/spec-ref-gen.js"
+    "spec-ref-gen": "dist/bin/spec-ref-gen.js",
+    "spec-ref-scan": "dist/bin/spec-ref-scan.js"
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    ".claude/skills"
   ],
   "type": "module",
   "main": "dist/core/spec-ref.js",
@@ -16,7 +18,8 @@
   "exports": {
     ".": "./dist/core/spec-ref.js",
     "./gen": "./dist/cli/gen.js",
-    "./check": "./dist/cli/gen-check.js"
+    "./check": "./dist/cli/gen-check.js",
+    "./scan": "./dist/cli/scan.js"
   },
   "scripts": {
     "gen": "tsx src/bin/spec-ref-gen.ts",
@@ -24,6 +27,8 @@
     "gen:check:fixtures": "tsx src/bin/spec-ref-gen.ts fixtures/SPEC.md --check fixtures/spec.gen.ts",
     "check:gen": "tsx src/bin/spec-ref-check.ts",
     "check:gen:fixtures": "tsx src/bin/spec-ref-check.ts fixtures/SPEC.md fixtures/spec.gen.ts",
+    "scan": "tsx src/bin/spec-ref-scan.ts",
+    "scan:fixtures": "tsx src/bin/spec-ref-scan.ts fixtures/SPEC.md fixtures/spec.gen.ts fixtures --strict",
     "build": "tsc -p tsconfig.build.json && chmod +x dist/bin/*.js",
     "build:watch": "tsc -w -p tsconfig.build.json",
     "link:local": "pnpm build && npm link",
